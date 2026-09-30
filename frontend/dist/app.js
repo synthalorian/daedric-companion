@@ -1280,6 +1280,28 @@ $('cal-copy').addEventListener('click', async () => {
 let editingContractId = null;
 let editingPlaceId = null;
 
+function resolveLink(id, rows, fallback) {
+  if (!id) return { name: fallback || '', linked: false, missing: false };
+  const hit = (rows || []).find((r) => r.id === id);
+  if (!hit) return { name: fallback || '', linked: false, missing: true };
+  return { name: hit.name || fallback || '', linked: true, missing: false };
+}
+
+function fillPick(select, rows, selectedId, emptyLabel) {
+  select.innerHTML = '';
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = emptyLabel;
+  select.appendChild(blank);
+  (rows || []).forEach((row) => {
+    const opt = document.createElement('option');
+    opt.value = row.id;
+    opt.textContent = row.name || '(unnamed)';
+    select.appendChild(opt);
+  });
+  select.value = selectedId && [...select.options].some((o) => o.value === selectedId) ? selectedId : '';
+}
+
 function renderContracts() {
   const list = $('contract-list');
   if (!list || !profile) return;
@@ -1290,6 +1312,8 @@ function renderContracts() {
     return;
   }
   rows.forEach((c) => {
+    const giver = resolveLink(c.giver_id, profile.contacts, c.giver);
+    const place = resolveLink(c.place_id, profile.places, c.location);
     const card = document.createElement('div');
     card.className = 'card' + (c.status === 'failed' ? ' dead' : '');
     const head = document.createElement('div');
@@ -1303,7 +1327,10 @@ function renderContracts() {
     head.appendChild(title);
     head.appendChild(reward);
     card.appendChild(head);
-    const metaBits = [c.giver && 'from ' + c.giver, c.location].filter(Boolean);
+    const metaBits = [
+      giver.name && 'from ' + giver.name + (giver.linked ? ' · linked' : giver.missing ? ' · lost link' : ''),
+      place.name && place.name + (place.linked ? ' · linked' : place.missing ? ' · lost link' : ''),
+    ].filter(Boolean);
     if (metaBits.length) {
       const meta = document.createElement('div');
       meta.className = 'card-meta';
@@ -1357,9 +1384,13 @@ function renderContracts() {
 function openContractEditor(contract) {
   editingContractId = contract ? contract.id : null;
   $('contract-editor-title').textContent = contract ? 'EDIT CONTRACT' : 'NEW CONTRACT';
+  const giver = resolveLink(contract?.giver_id, profile?.contacts, contract?.giver);
+  const place = resolveLink(contract?.place_id, profile?.places, contract?.location);
+  fillPick($('co-giver-pick'), profile?.contacts, giver.linked ? contract.giver_id : '', '— freeform —');
+  fillPick($('co-place-pick'), profile?.places, place.linked ? contract.place_id : '', '— freeform —');
   $('co-title').value = contract?.title || '';
-  $('co-giver').value = contract?.giver || '';
-  $('co-location').value = contract?.location || '';
+  $('co-giver').value = giver.name;
+  $('co-location').value = place.name;
   $('co-reward').value = contract?.reward ?? 0;
   $('co-detail').value = contract?.detail || '';
   $('contract-editor').classList.remove('hidden');
@@ -1367,6 +1398,30 @@ function openContractEditor(contract) {
 }
 
 $('contract-new').addEventListener('click', () => openContractEditor(null));
+$('co-giver-pick').addEventListener('change', () => {
+  const id = $('co-giver-pick').value;
+  if (!id) return;
+  const row = (profile.contacts || []).find((c) => c.id === id);
+  if (row && row.name) $('co-giver').value = row.name;
+});
+$('co-place-pick').addEventListener('change', () => {
+  const id = $('co-place-pick').value;
+  if (!id) return;
+  const row = (profile.places || []).find((p) => p.id === id);
+  if (row && row.name) $('co-location').value = row.name;
+});
+$('co-giver').addEventListener('input', () => {
+  if ($('co-giver-pick').value) return;
+  const want = $('co-giver').value.trim().toLowerCase();
+  const hits = (profile.contacts || []).filter((c) => (c.name || '').trim().toLowerCase() === want);
+  if (hits.length === 1) $('co-giver-pick').value = hits[0].id;
+});
+$('co-location').addEventListener('input', () => {
+  if ($('co-place-pick').value) return;
+  const want = $('co-location').value.trim().toLowerCase();
+  const hits = (profile.places || []).filter((p) => (p.name || '').trim().toLowerCase() === want);
+  if (hits.length === 1) $('co-place-pick').value = hits[0].id;
+});
 $('contract-cancel').addEventListener('click', () => {
   editingContractId = null;
   $('contract-editor').classList.add('hidden');
@@ -1385,7 +1440,9 @@ $('contract-save').addEventListener('click', async () => {
         created: existing?.created || 0,
         title,
         giver: $('co-giver').value.trim(),
+        giver_id: $('co-giver-pick').value,
         location: $('co-location').value.trim(),
+        place_id: $('co-place-pick').value,
         detail: $('co-detail').value.trim(),
         reward: Math.max(0, parseInt($('co-reward').value, 10) || 0),
         status: existing?.status || 'open',

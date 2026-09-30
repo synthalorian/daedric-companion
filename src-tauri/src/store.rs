@@ -165,10 +165,16 @@ pub struct Contract {
     pub title: String,
     #[serde(default)]
     pub giver: String,
+    /// Contact id when the giver is someone on the roll. Empty means freeform.
+    #[serde(default)]
+    pub giver_id: String,
     #[serde(default)]
     pub detail: String,
     #[serde(default)]
     pub location: String,
+    /// Place id when `location` is a remembered place. Empty means freeform.
+    #[serde(default)]
+    pub place_id: String,
     #[serde(default)]
     pub reward: i64,
     /// "open" | "done" | "failed"
@@ -727,6 +733,71 @@ impl Store {
         self.save_doc(&doc)
     }
 
+    fn unique_id_by_name<'a>(
+        rows: impl Iterator<Item = (&'a str, &'a str)>,
+        want: &str,
+    ) -> Option<(&'a str, &'a str)> {
+        let want = want.trim();
+        if want.is_empty() {
+            return None;
+        }
+        let want_l = want.to_ascii_lowercase();
+        let mut hit: Option<(&'a str, &'a str)> = None;
+        for (id, name) in rows {
+            if name.trim().to_ascii_lowercase() != want_l {
+                continue;
+            }
+            if hit.is_some() {
+                return None;
+            }
+            hit = Some((id, name.trim()));
+        }
+        hit
+    }
+
+    /// A set id wins and snapshots the live name. A unique freeform name binds.
+    /// A dangling id is cleared; the typed name stays so a deleted contact is not forgotten.
+    fn bind_contract_links(book: &CharacterBook, contract: &mut Contract) {
+        contract.giver_id = contract.giver_id.trim().to_string();
+        contract.place_id = contract.place_id.trim().to_string();
+        contract.giver = contract.giver.trim().to_string();
+        contract.location = contract.location.trim().to_string();
+
+        if !contract.giver_id.is_empty() {
+            if let Some(contact) = book.contacts.iter().find(|c| c.id == contract.giver_id) {
+                if !contact.name.trim().is_empty() {
+                    contract.giver = contact.name.trim().to_string();
+                }
+            } else {
+                contract.giver_id.clear();
+            }
+        } else if let Some((id, name)) = Self::unique_id_by_name(
+            book.contacts
+                .iter()
+                .map(|c| (c.id.as_str(), c.name.as_str())),
+            &contract.giver,
+        ) {
+            contract.giver_id = id.to_string();
+            contract.giver = name.to_string();
+        }
+
+        if !contract.place_id.is_empty() {
+            if let Some(place) = book.places.iter().find(|p| p.id == contract.place_id) {
+                if !place.name.trim().is_empty() {
+                    contract.location = place.name.trim().to_string();
+                }
+            } else {
+                contract.place_id.clear();
+            }
+        } else if let Some((id, name)) = Self::unique_id_by_name(
+            book.places.iter().map(|p| (p.id.as_str(), p.name.as_str())),
+            &contract.location,
+        ) {
+            contract.place_id = id.to_string();
+            contract.location = name.to_string();
+        }
+    }
+
     fn write_contract(book: &mut CharacterBook, mut contract: Contract) -> Contract {
         if contract.id.is_empty() {
             contract.id = new_id();
@@ -738,6 +809,7 @@ impl Store {
         if contract.reward < 0 {
             contract.reward = 0;
         }
+        Self::bind_contract_links(book, &mut contract);
         let prior = book.contracts.iter().find(|c| c.id == contract.id);
         if let Some(prior) = prior {
             contract.paid = prior.paid;
@@ -1054,6 +1126,84 @@ mod tests {
         s.set_contract_status(&c.id, "open".into()).unwrap();
         assert_eq!(s.profile().purse_balance, 100);
         assert!(s.profile().contracts[0].paid);
+    }
+
+    #[test]
+    fn contract_links_a_contact_and_a_place() {
+        let s = temp_store("links");
+        let contact = s
+            .save_contact(Contact {
+                id: String::new(),
+                name: "Bjorn".into(),
+                race: String::new(),
+                faction: String::new(),
+                role: String::new(),
+                met_at: String::new(),
+                first_met: String::new(),
+                last_seen: String::new(),
+                relationship: 0,
+                alive: true,
+                notes: String::new(),
+            })
+            .unwrap();
+        let place = s
+            .save_place(Place {
+                id: String::new(),
+                name: "Whiterun".into(),
+                region: "Whiterun Hold".into(),
+                last_visited: String::new(),
+                notes: String::new(),
+            })
+            .unwrap();
+        let linked = s
+            .save_contract(Contract {
+                id: String::new(),
+                title: "hold the gate".into(),
+                giver_id: contact.id.clone(),
+                giver: "someone else".into(),
+                place_id: place.id.clone(),
+                location: "elsewhere".into(),
+                reward: 50,
+                status: "open".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(linked.giver, "Bjorn");
+        assert_eq!(linked.giver_id, contact.id);
+        assert_eq!(linked.location, "Whiterun");
+        assert_eq!(linked.place_id, place.id);
+
+        let by_name = s
+            .save_contract(Contract {
+                id: String::new(),
+                title: "a whisper".into(),
+                giver: "bjorn".into(),
+                location: "whiterun".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(by_name.giver_id, contact.id);
+        assert_eq!(by_name.giver, "Bjorn");
+        assert_eq!(by_name.place_id, place.id);
+
+        let dangling = s
+            .save_contract(Contract {
+                id: String::new(),
+                title: "a ghost".into(),
+                giver_id: "gone".into(),
+                giver: "a jarl".into(),
+                place_id: "gone".into(),
+                location: "a ruin".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(dangling.giver_id.is_empty());
+        assert_eq!(dangling.giver, "a jarl");
+        assert!(dangling.place_id.is_empty());
+        assert_eq!(dangling.location, "a ruin");
+
+        s.set_contract_status(&linked.id, "done".into()).unwrap();
+        assert_eq!(s.profile().purse[0].counterparty, "Bjorn");
     }
 
     #[test]

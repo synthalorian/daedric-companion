@@ -808,3 +808,35 @@ main.view { overflow: auto; }
   color: var(--steel);
   letter-spacing: 0.5px;
 }
+
+/* WebKitGTK paints native selects and number spinners white, then bone
+   text sits on that white. Force the dark scheme and drop native chrome. */
+html {
+  color-scheme: dark;
+}
+
+select,
+option {
+  color-scheme: dark;
+  background-color: var(--bg-panel) !important;
+  color: var(--bone) !important;
+}
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--steel) 50%),
+    linear-gradient(135deg, var(--steel) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 55%, calc(100% - 10px) 55%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+
+input,
+textarea {
+  color-scheme: dark;
+  background-color: var(--bg-panel);
+  color: var(--bone);
+}

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
   <title>Daedric Companion</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -416,8 +417,14 @@
       <div class="panel-head"><h2 id="contract-editor-title">NEW CONTRACT</h2></div>
       <div class="panel-body form-grid">
         <label class="field"><span>TITLE</span><input id="co-title" type="text" spellcheck="false" /></label>
-        <label class="field"><span>GIVER</span><input id="co-giver" type="text" spellcheck="false" /></label>
-        <label class="field"><span>WHERE</span><input id="co-location" type="text" spellcheck="false" /></label>
+        <label class="field"><span>GIVER</span>
+          <select id="co-giver-pick"></select>
+          <input id="co-giver" type="text" placeholder="freeform if unlinked" spellcheck="false" />
+        </label>
+        <label class="field"><span>WHERE</span>
+          <select id="co-place-pick"></select>
+          <input id="co-location" type="text" placeholder="freeform if unlinked" spellcheck="false" />
+        </label>
         <label class="field"><span>REWARD (SEPTIMS)</span><input id="co-reward" type="number" min="0" value="0" /></label>
         <label class="field span-2"><span>THE JOB</span><textarea id="co-detail" rows="4" spellcheck="false"></textarea></label>
       </div>
@@ -426,7 +433,7 @@
         <button id="contract-cancel" class="btn small" type="button">CANCEL</button>
       </div>
     </section>
-    <p class="hint">DONE pays the purse once. Reopening does not refund.</p>
+    <p class="hint">DONE pays the purse once. Reopening does not refund. A picked giver or place stays linked.</p>
     <div id="contract-list" class="card-list"></div>
   </main>
 

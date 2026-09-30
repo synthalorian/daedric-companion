@@ -30,7 +30,7 @@ The update probe can sit for ~25 seconds when the client is current. That is the
 
 ## Journal
 
-The profile lives at the app config dir (`daedric-companion/profile.json`). Dates you type are freeform — the server runs on Tamrielic dates, not epoch timestamps. Each character owns their own contacts, chronicle, rumors, purse, factions, and sessions.
+The profile lives at the app config dir (`daedric-companion/profile.json`). Dates you type are freeform — the server runs on Tamrielic dates, not epoch timestamps. Each character owns their own contacts, chronicle, rumors, purse, factions, contracts, kit, places, and sessions. A contract's giver and where link to a contact and a place when you pick them; a freeform name that matches one roll entry binds on save.
 
 ## License
 
