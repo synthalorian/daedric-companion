@@ -1358,6 +1358,13 @@ $('host-input').addEventListener('keydown', (e) => {
 });
 $('auto-refresh').addEventListener('change', armAutoRefresh);
 
+const SKYRIM_KEY = 'daedric-skyrim-root';
+const savedRoot = localStorage.getItem(SKYRIM_KEY);
+if (savedRoot) $('skyrim-root-input').value = savedRoot;
+$('skyrim-root-input').addEventListener('change', () => {
+  localStorage.setItem(SKYRIM_KEY, $('skyrim-root-input').value.trim());
+});
+
 armAutoRefresh();
 refreshAll();
 startWatcher();

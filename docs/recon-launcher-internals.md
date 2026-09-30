@@ -1,13 +1,13 @@
 # Daedric Online Launcher — Internal Recon (for third-party companion app)
 
 **Source analyzed:** `C:\Program Files\DaedricOnline\resources\app.asar` (Wine prefix
-`/home/synth/Games/umu/umu-489830/drive_c/...`), launcher **version 1.3.60** (from
+`<umu-prefix>/drive_c/...`), launcher **version 1.3.60** (from
 `package.json`). Electron app, esbuild-bundled (`dist/main.js` = main process,
 `dist/renderer.js` = UI). Read-only analysis; nothing modified.
 
 **Live settings file (user machine):**
 `C:\users\steamuser\AppData\Roaming\Daedric Online\settings.json` — confirms the
-defaults below plus live values: `profileId: 4158`, `discordClientId: "1523305822791139388"`,
+defaults below. Personal account ids are omitted. Non-identifying live values:
 `voiceLastGoodPort: 7778`, `termsAcceptedVersion: 5`. `voice.log` (262 KB) also lives in
 that Roaming dir.
 

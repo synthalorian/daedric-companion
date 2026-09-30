@@ -1,7 +1,7 @@
 //! Live update-check probe against play.daedriconline.com.
 //!
 //! usage: update [host] [overlay_version]
-//! defaults: synth's field machine (host + installed overlay marker).
+//! Overlay marker is read from $DAEDRIC_SKYRIM when set.
 //!
 //! WARNING: the server holds ~25 s when nothing changed — a slow run is the
 //! up-to-date path, not a hang.
@@ -9,9 +9,8 @@
 use daedric_api::{Client, DEFAULT_HOST};
 
 fn read_installed_overlay() -> Option<String> {
-    let root = std::path::Path::new(
-        "/home/synth/.local/share/Steam/steamapps/common/Skyrim Special Edition",
-    );
+    let root = std::env::var("DAEDRIC_SKYRIM").ok()?;
+    let root = std::path::PathBuf::from(root);
     for path in [
         root.join("DaedricData").join("overlay-version.json"),
         root.join(".daedric-overlay.json"),
