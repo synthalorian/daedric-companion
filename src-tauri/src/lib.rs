@@ -7,8 +7,8 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use store::{
-    Character, CoinEntry, Contact, FactionStanding, JournalEntry, PlaySession, Profile, Rumor,
-    Store,
+    Character, CoinEntry, Contact, Contract, FactionStanding, JournalEntry, KitItem, Place,
+    PlaySession, Profile, Rumor, Store,
 };
 use tauri::{Emitter, Manager};
 
@@ -417,6 +417,45 @@ fn faction_delete(state: tauri::State<Store>, id: String) -> Result<(), String> 
     state.delete_faction(&id)
 }
 
+#[tauri::command]
+fn contract_save(state: tauri::State<Store>, contract: Contract) -> Result<Contract, String> {
+    state.save_contract(contract)
+}
+
+#[tauri::command]
+fn contract_set(
+    state: tauri::State<Store>,
+    id: String,
+    status: String,
+) -> Result<Contract, String> {
+    state.set_contract_status(&id, status)
+}
+
+#[tauri::command]
+fn contract_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_contract(&id)
+}
+
+#[tauri::command]
+fn kit_save(state: tauri::State<Store>, item: KitItem) -> Result<KitItem, String> {
+    state.save_kit(item)
+}
+
+#[tauri::command]
+fn kit_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_kit(&id)
+}
+
+#[tauri::command]
+fn place_save(state: tauri::State<Store>, place: Place) -> Result<Place, String> {
+    state.save_place(place)
+}
+
+#[tauri::command]
+fn place_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_place(&id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -451,7 +490,14 @@ pub fn run() {
             purse_add,
             purse_delete,
             faction_save,
-            faction_delete
+            faction_delete,
+            contract_save,
+            contract_set,
+            contract_delete,
+            kit_save,
+            kit_delete,
+            place_save,
+            place_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running daedric-companion");

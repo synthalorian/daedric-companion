@@ -2,7 +2,7 @@
 
 Desktop companion for the [Daedric Online](https://daedriconline.com) Skyrim SE roleplay server.
 
-It watches the live server (player count, latency, news, launcher feed, collection summary, overlay update channel) and keeps a local war journal: character sheets, contacts, chronicle, rumors, dice, a septim purse, faction standings, play-session clock, and a Tamrielic date helper.
+It watches the live server (player count, latency, news, launcher feed, collection summary, overlay update channel) and keeps a local war journal: character sheets, contacts, chronicle, rumors, dice, a septim purse, faction standings, contracts, worn kit, places, a play-session clock, and a Tamrielic date helper.
 
 Nothing here talks to your game process. The journal is a JSON file on your machine.
 

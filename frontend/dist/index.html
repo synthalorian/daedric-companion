@@ -19,6 +19,9 @@
       <button class="tab" data-view="purse">PURSE</button>
       <button class="tab" data-view="factions">FACTIONS</button>
       <button class="tab" data-view="calendar">CALENDAR</button>
+      <button class="tab" data-view="contracts">CONTRACTS</button>
+      <button class="tab" data-view="kit">KIT</button>
+      <button class="tab" data-view="places">PLACES</button>
     </nav>
     <div class="host-bar">
       <label for="host-input">HOST</label>
@@ -402,6 +405,60 @@
         </div>
       </section>
     </div>
+  </main>
+
+  <!-- ================= CONTRACTS ================= -->
+  <main class="view hidden" id="view-contracts">
+    <div class="toolbar">
+      <button id="contract-new" class="btn" type="button">+ NEW CONTRACT</button>
+    </div>
+    <section class="panel hidden" id="contract-editor">
+      <div class="panel-head"><h2 id="contract-editor-title">NEW CONTRACT</h2></div>
+      <div class="panel-body form-grid">
+        <label class="field"><span>TITLE</span><input id="co-title" type="text" spellcheck="false" /></label>
+        <label class="field"><span>GIVER</span><input id="co-giver" type="text" spellcheck="false" /></label>
+        <label class="field"><span>WHERE</span><input id="co-location" type="text" spellcheck="false" /></label>
+        <label class="field"><span>REWARD (SEPTIMS)</span><input id="co-reward" type="number" min="0" value="0" /></label>
+        <label class="field span-2"><span>THE JOB</span><textarea id="co-detail" rows="4" spellcheck="false"></textarea></label>
+      </div>
+      <div class="sheet-actions">
+        <button id="contract-save" class="btn" type="button">SAVE</button>
+        <button id="contract-cancel" class="btn small" type="button">CANCEL</button>
+      </div>
+    </section>
+    <p class="hint">DONE pays the purse once. Reopening does not refund.</p>
+    <div id="contract-list" class="card-list"></div>
+  </main>
+
+  <!-- ================= KIT ================= -->
+  <main class="view hidden" id="view-kit">
+    <div class="toolbar">
+      <input id="kit-name" type="text" placeholder="steel sword" spellcheck="false" />
+      <input id="kit-slot" type="text" placeholder="right hand, chest, pack…" spellcheck="false" />
+      <button id="kit-add" class="btn" type="button">+ ADD</button>
+    </div>
+    <div id="kit-list" class="card-list"></div>
+  </main>
+
+  <!-- ================= PLACES ================= -->
+  <main class="view hidden" id="view-places">
+    <div class="toolbar">
+      <button id="place-new" class="btn" type="button">+ NEW PLACE</button>
+    </div>
+    <section class="panel hidden" id="place-editor">
+      <div class="panel-head"><h2 id="place-editor-title">NEW PLACE</h2></div>
+      <div class="panel-body form-grid">
+        <label class="field"><span>NAME</span><input id="pl-name" type="text" spellcheck="false" /></label>
+        <label class="field"><span>REGION</span><input id="pl-region" type="text" spellcheck="false" /></label>
+        <label class="field span-2"><span>LAST VISITED</span><input id="pl-visited" type="text" placeholder="4E 201, 15th of Last Seed" spellcheck="false" /></label>
+        <label class="field span-2"><span>NOTES</span><textarea id="pl-notes" rows="3" spellcheck="false"></textarea></label>
+      </div>
+      <div class="sheet-actions">
+        <button id="place-save" class="btn" type="button">SAVE</button>
+        <button id="place-cancel" class="btn small" type="button">CANCEL</button>
+      </div>
+    </section>
+    <div id="place-list" class="card-list"></div>
   </main>
 
   <div id="toast" class="toast hidden"></div>

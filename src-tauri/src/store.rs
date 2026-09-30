@@ -154,6 +154,70 @@ pub struct FactionStanding {
     pub notes: String,
 }
 
+/// A job with a septim reward. `paid` flips once, the first time status
+/// becomes `done` with a positive reward. Reopening does not refund.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Contract {
+    pub id: String,
+    #[serde(default)]
+    pub created: u64,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub giver: String,
+    #[serde(default)]
+    pub detail: String,
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub reward: i64,
+    /// "open" | "done" | "failed"
+    #[serde(default = "status_open")]
+    pub status: String,
+    #[serde(default)]
+    pub paid: bool,
+}
+
+/// One piece of kit. `slot` is freeform ("right hand", "chest", "pack").
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KitItem {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub slot: String,
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub equipped: bool,
+}
+
+/// A place worth remembering. `last_visited` is a freeform Tamrielic date.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Place {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub region: String,
+    #[serde(default)]
+    pub last_visited: String,
+    #[serde(default)]
+    pub notes: String,
+}
+
+fn status_open() -> String {
+    "open".into()
+}
+
+fn normalize_status(status: &str) -> String {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "done" => "done".into(),
+        "failed" => "failed".into(),
+        _ => "open".into(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CharacterBook {
     #[serde(default)]
@@ -172,6 +236,12 @@ struct CharacterBook {
     factions: Vec<FactionStanding>,
     #[serde(default)]
     sessions: Vec<PlaySession>,
+    #[serde(default)]
+    contracts: Vec<Contract>,
+    #[serde(default)]
+    kit: Vec<KitItem>,
+    #[serde(default)]
+    places: Vec<Place>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,6 +271,9 @@ pub struct Profile {
     pub purse: Vec<CoinEntry>,
     pub factions: Vec<FactionStanding>,
     pub sessions: Vec<PlaySession>,
+    pub contracts: Vec<Contract>,
+    pub kit: Vec<KitItem>,
+    pub places: Vec<Place>,
     pub purse_balance: i64,
     pub time_on_field_ms: u64,
 }
@@ -242,6 +315,9 @@ impl CharacterBook {
             purse: Vec::new(),
             factions: Vec::new(),
             sessions: Vec::new(),
+            contracts: Vec::new(),
+            kit: Vec::new(),
+            places: Vec::new(),
         }
     }
 }
@@ -303,6 +379,9 @@ fn legacy_wrap(obj: &serde_json::Map<String, Value>) -> Document {
         purse: Vec::new(),
         factions: Vec::new(),
         sessions: Vec::new(),
+        contracts: Vec::new(),
+        kit: Vec::new(),
+        places: Vec::new(),
     };
     Document {
         active_id: book.id.clone(),
@@ -413,6 +492,25 @@ impl Store {
             factions,
             time_on_field_ms: field_ms(&book.sessions, now),
             sessions,
+            contracts: {
+                let mut v = book.contracts.clone();
+                v.sort_by(|a, b| b.created.cmp(&a.created));
+                v
+            },
+            kit: {
+                let mut v = book.kit.clone();
+                v.sort_by(|a, b| {
+                    b.equipped
+                        .cmp(&a.equipped)
+                        .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                });
+                v
+            },
+            places: {
+                let mut v = book.places.clone();
+                v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+                v
+            },
         }
     }
 
@@ -628,6 +726,127 @@ impl Store {
         active_mut(&mut doc).factions.retain(|f| f.id != id);
         self.save_doc(&doc)
     }
+
+    fn write_contract(book: &mut CharacterBook, mut contract: Contract) -> Contract {
+        if contract.id.is_empty() {
+            contract.id = new_id();
+        }
+        if contract.created == 0 {
+            contract.created = now_ms();
+        }
+        contract.status = normalize_status(&contract.status);
+        if contract.reward < 0 {
+            contract.reward = 0;
+        }
+        let prior = book.contracts.iter().find(|c| c.id == contract.id);
+        if let Some(prior) = prior {
+            contract.paid = prior.paid;
+            if contract.created == 0 {
+                contract.created = prior.created;
+            }
+        }
+        if contract.status == "done" && !contract.paid && contract.reward > 0 {
+            let note = if contract.title.trim().is_empty() {
+                "contract".to_string()
+            } else {
+                contract.title.trim().to_string()
+            };
+            book.purse.push(CoinEntry {
+                id: new_id(),
+                created: now_ms(),
+                amount: contract.reward,
+                note,
+                counterparty: contract.giver.trim().to_string(),
+            });
+            contract.paid = true;
+        }
+        if let Some(slot) = book.contracts.iter_mut().find(|c| c.id == contract.id) {
+            contract.created = slot.created;
+            *slot = contract.clone();
+        } else {
+            book.contracts.push(contract.clone());
+        }
+        contract
+    }
+
+    pub fn save_contract(&self, contract: Contract) -> Result<Contract, String> {
+        if contract.title.trim().is_empty() {
+            return Err("a contract needs a title".into());
+        }
+        let mut doc = self.doc.lock().unwrap();
+        let stored = Self::write_contract(active_mut(&mut doc), contract);
+        self.save_doc(&doc)?;
+        Ok(stored)
+    }
+
+    pub fn set_contract_status(&self, id: &str, status: String) -> Result<Contract, String> {
+        let mut doc = self.doc.lock().unwrap();
+        let book = active_mut(&mut doc);
+        let mut contract = book
+            .contracts
+            .iter()
+            .find(|c| c.id == id)
+            .cloned()
+            .ok_or_else(|| "no such contract".to_string())?;
+        contract.status = status;
+        let stored = Self::write_contract(book, contract);
+        self.save_doc(&doc)?;
+        Ok(stored)
+    }
+
+    pub fn delete_contract(&self, id: &str) -> Result<(), String> {
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).contracts.retain(|c| c.id != id);
+        self.save_doc(&doc)
+    }
+
+    pub fn save_kit(&self, mut item: KitItem) -> Result<KitItem, String> {
+        if item.name.trim().is_empty() {
+            return Err("a kit piece needs a name".into());
+        }
+        let mut doc = self.doc.lock().unwrap();
+        if item.id.is_empty() {
+            item.id = new_id();
+        }
+        let book = active_mut(&mut doc);
+        if let Some(slot) = book.kit.iter_mut().find(|k| k.id == item.id) {
+            *slot = item.clone();
+        } else {
+            book.kit.push(item.clone());
+        }
+        self.save_doc(&doc)?;
+        Ok(item)
+    }
+
+    pub fn delete_kit(&self, id: &str) -> Result<(), String> {
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).kit.retain(|k| k.id != id);
+        self.save_doc(&doc)
+    }
+
+    pub fn save_place(&self, mut place: Place) -> Result<Place, String> {
+        if place.name.trim().is_empty() {
+            return Err("a place needs a name".into());
+        }
+        let mut doc = self.doc.lock().unwrap();
+        if place.id.is_empty() {
+            place.id = new_id();
+        }
+        let book = active_mut(&mut doc);
+        if let Some(slot) = book.places.iter_mut().find(|p| p.id == place.id) {
+            *slot = place.clone();
+        } else {
+            book.places.push(place.clone());
+        }
+        self.save_doc(&doc)?;
+        Ok(place)
+    }
+
+    pub fn delete_place(&self, id: &str) -> Result<(), String> {
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).places.retain(|p| p.id != id);
+        self.save_doc(&doc)
+    }
 }
 
 #[cfg(test)]
@@ -811,6 +1030,63 @@ mod tests {
         assert_eq!(s.profile().factions[0].rank, "harbinger");
         s.delete_faction(&f.id).unwrap();
         assert!(s.profile().factions.is_empty());
+    }
+
+    #[test]
+    fn contract_pays_the_purse_once() {
+        let s = temp_store("contract");
+        let c = s
+            .save_contract(Contract {
+                id: String::new(),
+                title: "clear the fort".into(),
+                giver: "jarl".into(),
+                reward: 100,
+                status: "open".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(s.profile().purse_balance, 0);
+        s.set_contract_status(&c.id, "done".into()).unwrap();
+        assert_eq!(s.profile().purse_balance, 100);
+        assert!(s.profile().contracts[0].paid);
+        s.set_contract_status(&c.id, "done".into()).unwrap();
+        assert_eq!(s.profile().purse_balance, 100);
+        s.set_contract_status(&c.id, "open".into()).unwrap();
+        assert_eq!(s.profile().purse_balance, 100);
+        assert!(s.profile().contracts[0].paid);
+    }
+
+    #[test]
+    fn kit_and_place_follow_the_active_character() {
+        let s = temp_store("kitplace");
+        s.save_character(Character {
+            name: "Svana".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        s.save_kit(KitItem {
+            id: String::new(),
+            name: "steel sword".into(),
+            slot: "right hand".into(),
+            equipped: true,
+            notes: String::new(),
+        })
+        .unwrap();
+        s.save_place(Place {
+            id: String::new(),
+            name: "Whiterun".into(),
+            region: "Whiterun Hold".into(),
+            last_visited: "4E 201, 15th of Last Seed".into(),
+            notes: String::new(),
+        })
+        .unwrap();
+        let id_a = s.profile().active_id.clone();
+        s.create_character("Alt".into()).unwrap();
+        assert!(s.profile().kit.is_empty());
+        assert!(s.profile().places.is_empty());
+        s.switch_character(&id_a).unwrap();
+        assert_eq!(s.profile().kit[0].name, "steel sword");
+        assert_eq!(s.profile().places[0].name, "Whiterun");
     }
 }
 

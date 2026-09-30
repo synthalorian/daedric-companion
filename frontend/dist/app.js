@@ -408,6 +408,9 @@ async function loadProfile() {
     renderPurse();
     renderFactions();
     renderSessions();
+    renderContracts();
+    renderKit();
+    renderPlaces();
     syncSessionChip();
   } catch (e) {
     toast('profile load failed: ' + String(e));
@@ -1269,6 +1272,307 @@ $('cal-copy').addEventListener('click', async () => {
     toast('copied — ' + text);
   } catch {
     toast(text);
+  }
+});
+
+// ---------- contracts, kit, places ----------
+
+let editingContractId = null;
+let editingPlaceId = null;
+
+function renderContracts() {
+  const list = $('contract-list');
+  if (!list || !profile) return;
+  list.innerHTML = '';
+  const rows = profile.contracts || [];
+  if (rows.length === 0) {
+    list.innerHTML = '<p class="empty-note">no contracts on the board.</p>';
+    return;
+  }
+  rows.forEach((c) => {
+    const card = document.createElement('div');
+    card.className = 'card' + (c.status === 'failed' ? ' dead' : '');
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    const title = document.createElement('span');
+    title.className = 'card-title';
+    title.textContent = c.title + (c.paid ? ' · PAID' : '');
+    const reward = document.createElement('span');
+    reward.className = 'card-meta' + (c.reward > 0 ? ' coin-in' : '');
+    reward.textContent = c.reward > 0 ? septims(c.reward) + ' septims' : 'no purse';
+    head.appendChild(title);
+    head.appendChild(reward);
+    card.appendChild(head);
+    const metaBits = [c.giver && 'from ' + c.giver, c.location].filter(Boolean);
+    if (metaBits.length) {
+      const meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = metaBits.join(' · ');
+      card.appendChild(meta);
+    }
+    if (c.detail) {
+      const body = document.createElement('p');
+      body.className = 'card-body';
+      body.textContent = c.detail;
+      card.appendChild(body);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    ['open', 'done', 'failed'].forEach((status) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small' + (c.status === status ? ' stand-btn selected' : '');
+      btn.textContent = status.toUpperCase();
+      btn.addEventListener('click', async () => {
+        if (c.status === status) return;
+        try {
+          await invoke('contract_set', { id: c.id, status });
+          await loadProfile();
+        } catch (e) {
+          toast(String(e));
+        }
+      });
+      actions.appendChild(btn);
+    });
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn small';
+    edit.textContent = 'EDIT';
+    edit.addEventListener('click', () => openContractEditor(c));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn small danger';
+    del.textContent = 'DROP';
+    del.addEventListener('click', async () => {
+      await invoke('contract_delete', { id: c.id });
+      await loadProfile();
+    });
+    actions.appendChild(edit);
+    actions.appendChild(del);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+function openContractEditor(contract) {
+  editingContractId = contract ? contract.id : null;
+  $('contract-editor-title').textContent = contract ? 'EDIT CONTRACT' : 'NEW CONTRACT';
+  $('co-title').value = contract?.title || '';
+  $('co-giver').value = contract?.giver || '';
+  $('co-location').value = contract?.location || '';
+  $('co-reward').value = contract?.reward ?? 0;
+  $('co-detail').value = contract?.detail || '';
+  $('contract-editor').classList.remove('hidden');
+  $('co-title').focus();
+}
+
+$('contract-new').addEventListener('click', () => openContractEditor(null));
+$('contract-cancel').addEventListener('click', () => {
+  editingContractId = null;
+  $('contract-editor').classList.add('hidden');
+});
+$('contract-save').addEventListener('click', async () => {
+  const title = $('co-title').value.trim();
+  if (!title) {
+    toast('a contract needs a title');
+    return;
+  }
+  const existing = (profile.contracts || []).find((c) => c.id === editingContractId);
+  try {
+    await invoke('contract_save', {
+      contract: {
+        id: editingContractId || '',
+        created: existing?.created || 0,
+        title,
+        giver: $('co-giver').value.trim(),
+        location: $('co-location').value.trim(),
+        detail: $('co-detail').value.trim(),
+        reward: Math.max(0, parseInt($('co-reward').value, 10) || 0),
+        status: existing?.status || 'open',
+        paid: existing?.paid || false,
+      },
+    });
+    $('contract-editor').classList.add('hidden');
+    editingContractId = null;
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+function renderKit() {
+  const list = $('kit-list');
+  if (!list || !profile) return;
+  list.innerHTML = '';
+  const rows = profile.kit || [];
+  if (rows.length === 0) {
+    list.innerHTML = '<p class="empty-note">nothing worn, nothing carried.</p>';
+    return;
+  }
+  rows.forEach((item) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    const name = document.createElement('span');
+    name.className = 'card-title';
+    name.textContent = item.name;
+    const slot = document.createElement('span');
+    slot.className = 'card-meta';
+    slot.textContent = item.slot || 'unslotted';
+    head.appendChild(name);
+    head.appendChild(slot);
+    card.appendChild(head);
+    if (item.notes) {
+      const notes = document.createElement('p');
+      notes.className = 'card-body';
+      notes.textContent = item.notes;
+      card.appendChild(notes);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const equip = document.createElement('button');
+    equip.type = 'button';
+    equip.className = 'btn small' + (item.equipped ? ' stand-btn selected' : '');
+    equip.textContent = item.equipped ? 'WORN' : 'STOWED';
+    equip.addEventListener('click', async () => {
+      try {
+        await invoke('kit_save', { item: { ...item, equipped: !item.equipped } });
+        await loadProfile();
+      } catch (e) {
+        toast(String(e));
+      }
+    });
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn small danger';
+    del.textContent = 'DROP';
+    del.addEventListener('click', async () => {
+      await invoke('kit_delete', { id: item.id });
+      await loadProfile();
+    });
+    actions.appendChild(equip);
+    actions.appendChild(del);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+$('kit-add').addEventListener('click', async () => {
+  const name = $('kit-name').value.trim();
+  if (!name) {
+    toast('a kit piece needs a name');
+    return;
+  }
+  try {
+    await invoke('kit_save', {
+      item: {
+        id: '',
+        name,
+        slot: $('kit-slot').value.trim(),
+        notes: '',
+        equipped: true,
+      },
+    });
+    $('kit-name').value = '';
+    $('kit-slot').value = '';
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+function renderPlaces() {
+  const list = $('place-list');
+  if (!list || !profile) return;
+  list.innerHTML = '';
+  const rows = profile.places || [];
+  if (rows.length === 0) {
+    list.innerHTML = '<p class="empty-note">no places marked.</p>';
+    return;
+  }
+  rows.forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    const name = document.createElement('span');
+    name.className = 'card-title';
+    name.textContent = p.name;
+    head.appendChild(name);
+    card.appendChild(head);
+    const bits = [p.region, p.last_visited && 'last visited ' + p.last_visited].filter(Boolean);
+    if (bits.length) {
+      const meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = bits.join(' · ');
+      card.appendChild(meta);
+    }
+    if (p.notes) {
+      const notes = document.createElement('p');
+      notes.className = 'card-body';
+      notes.textContent = p.notes;
+      card.appendChild(notes);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn small';
+    edit.textContent = 'EDIT';
+    edit.addEventListener('click', () => openPlaceEditor(p));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn small danger';
+    del.textContent = 'FORGET';
+    del.addEventListener('click', async () => {
+      await invoke('place_delete', { id: p.id });
+      await loadProfile();
+    });
+    actions.appendChild(edit);
+    actions.appendChild(del);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+function openPlaceEditor(place) {
+  editingPlaceId = place ? place.id : null;
+  $('place-editor-title').textContent = place ? 'EDIT PLACE' : 'NEW PLACE';
+  $('pl-name').value = place?.name || '';
+  $('pl-region').value = place?.region || '';
+  $('pl-visited').value = place?.last_visited || '';
+  $('pl-notes').value = place?.notes || '';
+  $('place-editor').classList.remove('hidden');
+  $('pl-name').focus();
+}
+
+$('place-new').addEventListener('click', () => openPlaceEditor(null));
+$('place-cancel').addEventListener('click', () => {
+  editingPlaceId = null;
+  $('place-editor').classList.add('hidden');
+});
+$('place-save').addEventListener('click', async () => {
+  const name = $('pl-name').value.trim();
+  if (!name) {
+    toast('a place needs a name');
+    return;
+  }
+  try {
+    await invoke('place_save', {
+      place: {
+        id: editingPlaceId || '',
+        name,
+        region: $('pl-region').value.trim(),
+        last_visited: $('pl-visited').value.trim(),
+        notes: $('pl-notes').value.trim(),
+      },
+    });
+    $('place-editor').classList.add('hidden');
+    editingPlaceId = null;
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
   }
 });
 
