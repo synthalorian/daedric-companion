@@ -1,0 +1,237 @@
+:root {
+  --bg: #101014;
+  --bg-panel: #16161c;
+  --bone: #d8d3c8;
+  --blood: #c1121f;
+  --steel: #8f959c;
+  --steel-dim: #3a3d44;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--bone);
+  font-family: Georgia, 'Times New Roman', serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--steel-dim);
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: normal;
+}
+
+.accent { color: var(--blood); }
+
+.host-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.host-bar label {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--steel);
+}
+
+#host-input {
+  background: var(--bg-panel);
+  border: 1px solid var(--steel-dim);
+  color: var(--bone);
+  font-family: inherit;
+  padding: 6px 10px;
+  width: 240px;
+  cursor: text;
+}
+
+#host-input:focus { outline: 1px solid var(--blood); }
+
+.btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--steel);
+  color: var(--bone);
+  font-family: inherit;
+  letter-spacing: 1px;
+  padding: 6px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.btn:hover { border-color: var(--blood); color: var(--blood); }
+.btn.small { padding: 4px 10px; font-size: 11px; }
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  padding: 14px 20px;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--steel-dim);
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+}
+
+#panel-news { grid-row: span 2; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--steel-dim);
+}
+
+.panel-head h2 {
+  font-size: 14px;
+  letter-spacing: 2px;
+  font-weight: normal;
+  color: var(--steel);
+}
+
+.panel-controls { display: flex; align-items: center; gap: 12px; }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--steel);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input { accent-color: var(--blood); cursor: pointer; }
+
+.panel-body { padding: 14px; flex: 1; position: relative; overflow: auto; }
+
+.pulse-body { display: flex; flex-direction: column; gap: 14px; }
+
+.badge {
+  align-self: flex-start;
+  font-size: 26px;
+  letter-spacing: 4px;
+  padding: 6px 18px;
+  border: 2px solid;
+}
+
+.badge.online { color: #7fb069; border-color: #7fb069; }
+.badge.offline { color: var(--blood); border-color: var(--blood); }
+
+.pulse-stats { display: flex; gap: 40px; }
+
+.stat { display: flex; flex-direction: column; gap: 4px; }
+
+.stat-label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--steel);
+}
+
+.stat-value { font-size: 22px; }
+.stat-value.accent { color: var(--blood); }
+
+.news-list { display: flex; flex-direction: column; gap: 14px; }
+
+.news-post {
+  border: 1px solid var(--steel-dim);
+  padding: 10px 12px;
+}
+
+.news-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.chip {
+  background: var(--blood);
+  color: var(--bone);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+
+.news-date { font-size: 11px; color: var(--steel); }
+
+.news-items { list-style: none; padding-left: 4px; }
+
+.news-items li {
+  font-size: 13px;
+  padding: 3px 0 3px 14px;
+  position: relative;
+}
+
+.news-items li::before {
+  content: '◆';
+  color: var(--blood);
+  font-size: 8px;
+  position: absolute;
+  left: 0;
+  top: 7px;
+}
+
+.note {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--steel);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow: auto;
+  font-family: monospace;
+}
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--steel-dim);
+  border-top-color: var(--blood);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 10px auto;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+
+.error {
+  color: var(--blood);
+  font-size: 12px;
+  padding: 8px;
+  border: 1px solid var(--blood);
+}
+
+.foot {
+  padding: 8px 20px;
+  font-size: 11px;
+  color: var(--steel);
+  border-top: 1px solid var(--steel-dim);
+  text-align: center;
+  letter-spacing: 1px;
+}

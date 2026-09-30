@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daedric Companion</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">Daedric <span class="accent">Companion</span></h1>
+    <div class="host-bar">
+      <label for="host-input">HOST</label>
+      <input id="host-input" type="text" value="play.daedriconline.com" spellcheck="false" />
+      <button id="apply-host" class="btn">APPLY</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- SERVER PULSE -->
+    <section class="panel" id="panel-pulse">
+      <div class="panel-head">
+        <h2>SERVER PULSE</h2>
+        <div class="panel-controls">
+          <label class="toggle">
+            <input type="checkbox" id="auto-refresh" checked />
+            <span>AUTO 30s</span>
+          </label>
+          <button id="refresh-pulse" class="btn small">REFRESH</button>
+        </div>
+      </div>
+      <div class="panel-body pulse-body">
+        <div class="spinner" id="spinner-pulse"></div>
+        <div id="pulse-content" class="hidden">
+          <div id="pulse-badge" class="badge offline">OFFLINE</div>
+          <div class="pulse-stats">
+            <div class="stat">
+              <span class="stat-label">PLAYERS</span>
+              <span class="stat-value" id="pulse-players">—/—</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">LATENCY</span>
+              <span class="stat-value" id="pulse-latency">— ms</span>
+            </div>
+          </div>
+        </div>
+        <div id="pulse-error" class="error hidden"></div>
+      </div>
+    </section>
+
+    <!-- NEWS -->
+    <section class="panel" id="panel-news">
+      <div class="panel-head">
+        <h2>NEWS</h2>
+        <button id="refresh-news" class="btn small">REFRESH</button>
+      </div>
+      <div class="panel-body">
+        <div class="spinner" id="spinner-news"></div>
+        <div id="news-list" class="news-list hidden"></div>
+        <div id="news-error" class="error hidden"></div>
+      </div>
+    </section>
+
+    <!-- LAUNCHER -->
+    <section class="panel" id="panel-launcher">
+      <div class="panel-head">
+        <h2>LAUNCHER</h2>
+        <button id="refresh-launcher" class="btn small">REFRESH</button>
+      </div>
+      <div class="panel-body">
+        <div class="spinner" id="spinner-launcher"></div>
+        <div id="launcher-content" class="hidden">
+          <div class="stat">
+            <span class="stat-label">LATEST VERSION</span>
+            <span class="stat-value accent" id="launcher-version">—</span>
+          </div>
+          <pre class="note" id="launcher-note"></pre>
+        </div>
+        <div id="launcher-error" class="error hidden"></div>
+      </div>
+    </section>
+
+    <!-- COLLECTION -->
+    <section class="panel" id="panel-collection">
+      <div class="panel-head">
+        <h2>COLLECTION</h2>
+        <button id="refresh-collection" class="btn small">REFRESH</button>
+      </div>
+      <div class="panel-body">
+        <div class="spinner" id="spinner-collection"></div>
+        <div id="collection-content" class="hidden">
+          <div class="stat"><span class="stat-label">SLUG</span><span class="stat-value" id="collection-slug">—</span></div>
+          <div class="stat"><span class="stat-label">REVISION</span><span class="stat-value" id="collection-revision">—</span></div>
+          <div class="stat"><span class="stat-label">MODS</span><span class="stat-value" id="collection-mods">—</span></div>
+        </div>
+        <div id="collection-error" class="error hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Made by synth with blackclaw</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
