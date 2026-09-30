@@ -1,10 +1,13 @@
 //! daedric-companion — Tauri 2 desktop dashboard backed by daedric-api.
 
+mod store;
+
 use daedric_api::{Client, DEFAULT_HOST};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tauri::Emitter;
+use store::{Character, Contact, JournalEntry, Profile, Rumor, Store};
+use tauri::{Emitter, Manager};
 
 fn host_or_default(host: Option<String>) -> String {
     host.filter(|h| !h.trim().is_empty())
@@ -294,9 +297,66 @@ fn start_update_watcher(
     true
 }
 
+// ---------- RP profile store commands ----------
+
+#[tauri::command]
+fn profile_load(state: tauri::State<Store>) -> Profile {
+    state.profile()
+}
+
+#[tauri::command]
+fn character_save(state: tauri::State<Store>, character: Character) -> Result<(), String> {
+    state.save_character(character)
+}
+
+#[tauri::command]
+fn contact_save(state: tauri::State<Store>, contact: Contact) -> Result<Contact, String> {
+    state.save_contact(contact)
+}
+
+#[tauri::command]
+fn contact_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_contact(&id)
+}
+
+#[tauri::command]
+fn journal_add(
+    state: tauri::State<Store>,
+    title: String,
+    location: String,
+    body: String,
+) -> Result<JournalEntry, String> {
+    state.add_journal(title, location, body)
+}
+
+#[tauri::command]
+fn journal_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_journal(&id)
+}
+
+#[tauri::command]
+fn rumor_add(state: tauri::State<Store>, text: String, source: String) -> Result<Rumor, String> {
+    state.add_rumor(text, source)
+}
+
+#[tauri::command]
+fn rumor_toggle(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.toggle_rumor(&id)
+}
+
+#[tauri::command]
+fn rumor_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_rumor(&id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let config_dir = app.path().app_config_dir()?;
+            app.manage(Store::load(config_dir));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_pulse,
             get_news,
@@ -304,7 +364,16 @@ pub fn run() {
             get_collection,
             get_ping_stats,
             check_updates,
-            start_update_watcher
+            start_update_watcher,
+            profile_load,
+            character_save,
+            contact_save,
+            contact_delete,
+            journal_add,
+            journal_delete,
+            rumor_add,
+            rumor_toggle,
+            rumor_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running daedric-companion");

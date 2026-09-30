@@ -9,6 +9,14 @@
 <body>
   <header class="topbar">
     <h1 class="brand">Daedric <span class="accent">Companion</span></h1>
+    <nav class="tabs">
+      <button class="tab active" data-view="server">SERVER</button>
+      <button class="tab" data-view="character">CHARACTER</button>
+      <button class="tab" data-view="contacts">CONTACTS</button>
+      <button class="tab" data-view="chronicle">CHRONICLE</button>
+      <button class="tab" data-view="rumors">RUMORS</button>
+      <button class="tab" data-view="dice">DICE</button>
+    </nav>
     <div class="host-bar">
       <label for="host-input">HOST</label>
       <input id="host-input" type="text" value="play.daedriconline.com" spellcheck="false" />
@@ -16,7 +24,8 @@
     </div>
   </header>
 
-  <main class="grid">
+  <!-- ================= SERVER ================= -->
+  <main class="grid view" id="view-server">
     <!-- SERVER PULSE -->
     <section class="panel" id="panel-pulse">
       <div class="panel-head">
@@ -142,6 +151,162 @@
           <p class="hint">push channel holds ~25s when up to date — a slow check is a good sign</p>
         </div>
         <div id="update-error" class="error hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= CHARACTER ================= -->
+  <main class="view hidden" id="view-character">
+    <div class="sheet-grid">
+      <section class="panel">
+        <div class="panel-head"><h2>IDENTITY</h2></div>
+        <div class="panel-body form-grid">
+          <label class="field"><span>NAME</span><input id="ch-name" type="text" spellcheck="false" /></label>
+          <label class="field"><span>RACE</span><input id="ch-race" type="text" spellcheck="false" /></label>
+          <label class="field"><span>SEX</span><input id="ch-sex" type="text" spellcheck="false" /></label>
+          <label class="field"><span>BIRTHSIGN</span><input id="ch-birthsign" type="text" spellcheck="false" /></label>
+          <label class="field"><span>DEITY</span><input id="ch-deity" type="text" spellcheck="false" /></label>
+          <label class="field"><span>IN-GAME DATE</span><input id="ch-ingame-date" type="text" placeholder="4E 201, 15th of Last Seed" spellcheck="false" /></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>STANDING</h2></div>
+        <div class="panel-body form-grid">
+          <label class="field"><span>FACTION</span><input id="ch-faction" type="text" spellcheck="false" /></label>
+          <label class="field"><span>RANK</span><input id="ch-rank" type="text" spellcheck="false" /></label>
+          <label class="field"><span>OCCUPATION</span><input id="ch-occupation" type="text" spellcheck="false" /></label>
+          <label class="field"><span>LEVEL</span><input id="ch-level" type="number" min="0" /></label>
+          <label class="field"><span>HEALTH</span><input id="ch-health" type="number" min="0" /></label>
+          <label class="field"><span>MAGICKA</span><input id="ch-magicka" type="number" min="0" /></label>
+          <label class="field"><span>STAMINA</span><input id="ch-stamina" type="number" min="0" /></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>SKILLS</h2>
+          <button id="skill-add" class="btn small">+ ADD</button>
+        </div>
+        <div class="panel-body">
+          <div id="skill-rows" class="skill-rows"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>THE PERSON</h2></div>
+        <div class="panel-body form-grid single">
+          <label class="field"><span>APPEARANCE</span><textarea id="ch-appearance" rows="3" spellcheck="false"></textarea></label>
+          <label class="field"><span>PERSONALITY</span><textarea id="ch-personality" rows="3" spellcheck="false"></textarea></label>
+          <label class="field"><span>BACKSTORY</span><textarea id="ch-backstory" rows="5" spellcheck="false"></textarea></label>
+          <label class="field"><span>NOTES</span><textarea id="ch-notes" rows="3" spellcheck="false"></textarea></label>
+        </div>
+      </section>
+    </div>
+    <div class="sheet-actions">
+      <button id="character-save" class="btn">SAVE CHARACTER</button>
+      <span id="character-saved" class="saved-flash hidden">SAVED — the record holds</span>
+    </div>
+  </main>
+
+  <!-- ================= CONTACTS ================= -->
+  <main class="view hidden" id="view-contacts">
+    <div class="toolbar">
+      <button id="contact-new" class="btn">+ NEW CONTACT</button>
+      <input id="contact-search" type="text" placeholder="search name, faction, place…" spellcheck="false" />
+    </div>
+
+    <section class="panel hidden" id="contact-editor">
+      <div class="panel-head"><h2 id="contact-editor-title">NEW CONTACT</h2></div>
+      <div class="panel-body form-grid">
+        <label class="field"><span>NAME</span><input id="ct-name" type="text" spellcheck="false" /></label>
+        <label class="field"><span>RACE</span><input id="ct-race" type="text" spellcheck="false" /></label>
+        <label class="field"><span>FACTION</span><input id="ct-faction" type="text" spellcheck="false" /></label>
+        <label class="field"><span>ROLE</span><input id="ct-role" type="text" placeholder="barkeep, sellsword, jarl…" spellcheck="false" /></label>
+        <label class="field"><span>MET AT</span><input id="ct-met-at" type="text" spellcheck="false" /></label>
+        <label class="field"><span>FIRST MET</span><input id="ct-first-met" type="text" placeholder="4E 201, 3rd of Hearthfire" spellcheck="false" /></label>
+        <label class="field"><span>LAST SEEN</span><input id="ct-last-seen" type="text" spellcheck="false" /></label>
+        <label class="field"><span>STANDING</span>
+          <select id="ct-relationship">
+            <option value="-2">HATED (-2)</option>
+            <option value="-1">COLD (-1)</option>
+            <option value="0" selected>STRANGER (0)</option>
+            <option value="1">WARM (+1)</option>
+            <option value="2">SWORN (+2)</option>
+          </select>
+        </label>
+        <label class="field check-field"><span>ALIVE</span><input id="ct-alive" type="checkbox" checked /></label>
+        <label class="field span-2"><span>NOTES</span><textarea id="ct-notes" rows="3" spellcheck="false"></textarea></label>
+      </div>
+      <div class="sheet-actions">
+        <button id="contact-save" class="btn">SAVE</button>
+        <button id="contact-cancel" class="btn small">CANCEL</button>
+      </div>
+    </section>
+
+    <div id="contact-list" class="card-list"></div>
+  </main>
+
+  <!-- ================= CHRONICLE ================= -->
+  <main class="view hidden" id="view-chronicle">
+    <div class="toolbar">
+      <button id="journal-new" class="btn">+ NEW ENTRY</button>
+    </div>
+
+    <section class="panel hidden" id="journal-editor">
+      <div class="panel-head"><h2>NEW ENTRY</h2></div>
+      <div class="panel-body form-grid single">
+        <label class="field"><span>TITLE</span><input id="jn-title" type="text" spellcheck="false" /></label>
+        <label class="field"><span>LOCATION</span><input id="jn-location" type="text" spellcheck="false" /></label>
+        <label class="field"><span>ENTRY</span><textarea id="jn-body" rows="7" spellcheck="false"></textarea></label>
+      </div>
+      <div class="sheet-actions">
+        <button id="journal-save" class="btn">WRITE IT DOWN</button>
+        <button id="journal-cancel" class="btn small">CANCEL</button>
+      </div>
+    </section>
+
+    <div id="journal-list" class="card-list"></div>
+  </main>
+
+  <!-- ================= RUMORS ================= -->
+  <main class="view hidden" id="view-rumors">
+    <section class="panel">
+      <div class="panel-head"><h2>RUMORS &amp; LEADS</h2></div>
+      <div class="panel-body">
+        <div class="rumor-input-row">
+          <input id="rm-text" type="text" placeholder="bandits camped on the north road…" spellcheck="false" />
+          <input id="rm-source" type="text" placeholder="heard from" spellcheck="false" class="rumor-source" />
+          <button id="rumor-add" class="btn small">ADD</button>
+        </div>
+        <div id="rumor-list" class="card-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= DICE ================= -->
+  <main class="view hidden" id="view-dice">
+    <section class="panel">
+      <div class="panel-head"><h2>DICE TRAY</h2></div>
+      <div class="panel-body">
+        <div class="dice-row">
+          <button class="die btn" data-sides="4">d4</button>
+          <button class="die btn" data-sides="6">d6</button>
+          <button class="die btn" data-sides="8">d8</button>
+          <button class="die btn" data-sides="10">d10</button>
+          <button class="die btn" data-sides="12">d12</button>
+          <button class="die btn" data-sides="20">d20</button>
+          <button class="die btn" data-sides="100">d100</button>
+        </div>
+        <div class="dice-custom">
+          <input id="dice-count" type="number" min="1" max="20" value="1" />
+          <span>d</span>
+          <input id="dice-sides" type="number" min="2" max="1000" value="20" />
+          <button id="dice-roll-custom" class="btn small">ROLL</button>
+          <button id="dice-clear" class="btn small">CLEAR</button>
+        </div>
+        <div id="dice-result" class="dice-result hidden"></div>
+        <ul id="dice-history" class="dice-history"></ul>
       </div>
     </section>
   </main>
