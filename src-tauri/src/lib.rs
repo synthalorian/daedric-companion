@@ -2,6 +2,9 @@
 
 use daedric_api::{Client, DEFAULT_HOST};
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tauri::Emitter;
 
 fn host_or_default(host: Option<String>) -> String {
     host.filter(|h| !h.trim().is_empty())
@@ -20,13 +23,6 @@ pub struct PulseDto {
 pub struct LauncherInfo {
     version: Option<String>,
     raw: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CollectionSummary {
-    slug: Option<String>,
-    revision: Option<serde_json::Value>,
-    mods_count: Option<usize>,
 }
 
 #[tauri::command]
@@ -73,25 +69,54 @@ async fn get_latest_launcher(host: Option<String>) -> Result<LauncherInfo, Strin
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Debug, Serialize)]
+pub struct CollectionSummary {
+    slug: Option<String>,
+    revision: Option<serde_json::Value>,
+    /// Server sends counts as ints; older builds sent arrays — keep loose.
+    mods_count: Option<serde_json::Value>,
+    files_count: Option<serde_json::Value>,
+    url: Option<String>,
+    published_at: Option<String>,
+    pinned_revision: Option<serde_json::Value>,
+    file_set_sha256: Option<String>,
+}
+
 #[tauri::command]
 async fn get_collection(host: Option<String>) -> Result<CollectionSummary, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let client = Client::new(&host_or_default(host));
         let value = client.collection().map_err(|e| e.to_string())?;
-        let slug = value
-            .get("slug")
-            .and_then(|s| s.as_str())
-            .map(|s| s.to_string());
-        let revision = value.get("revision").cloned();
-        let mods_count = value
-            .get("mods")
-            .and_then(|m| m.as_array())
-            .map(|a| a.len());
+        let get_str = |k: &str| value.get(k).and_then(|s| s.as_str()).map(|s| s.to_string());
+        let count_of = |k: &str| -> Option<serde_json::Value> {
+            match value.get(k) {
+                Some(serde_json::Value::Array(a)) => Some(serde_json::Value::from(a.len())),
+                other => other.cloned(),
+            }
+        };
         Ok(CollectionSummary {
-            slug,
-            revision,
-            mods_count,
+            slug: get_str("slug"),
+            revision: value.get("revision").cloned(),
+            mods_count: count_of("mods"),
+            files_count: count_of("files"),
+            url: get_str("url"),
+            published_at: get_str("publishedAt"),
+            pinned_revision: value.get("pinnedRevision").cloned(),
+            file_set_sha256: get_str("fileSetSha256"),
         })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn get_ping_stats(
+    host: Option<String>,
+    count: Option<u32>,
+) -> Result<daedric_api::PingStats, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let client = Client::new(&host_or_default(host));
+        Ok(client.ping_stats(count.unwrap_or(5).clamp(1, 20)))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -202,6 +227,73 @@ async fn check_updates(
     .map_err(|e| e.to_string())?
 }
 
+/// Watcher event emitted to the frontend when the server pushes a change.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WatcherEvent {
+    /// "overlay" | "launcher" | "both"
+    kind: String,
+    overlay_version: Option<String>,
+    launcher_version: Option<String>,
+}
+
+static WATCHER_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Background update watcher: holds the `daedricWaitUpdate` long-poll in a
+/// loop and emits `update-event` to the frontend whenever the server pushes a
+/// new overlay or launcher build. Starts once per app run; returns false if
+/// already running. Network errors back off 30 s and retry.
+#[tauri::command]
+fn start_update_watcher(
+    app: tauri::AppHandle,
+    skyrim_root: Option<String>,
+    host: Option<String>,
+) -> bool {
+    if WATCHER_RUNNING.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+    let host = host_or_default(host);
+    let mut overlay = skyrim_root
+        .filter(|r| !r.trim().is_empty())
+        .and_then(|r| read_installed_overlay(&r));
+    let mut launcher: Option<String> = None;
+
+    std::thread::spawn(move || {
+        let client = Client::new(&host);
+        loop {
+            match client.check_update(overlay.as_deref(), launcher.as_deref()) {
+                Ok(check) => {
+                    if check.change {
+                        let overlay_changed =
+                            check.overlay_version.is_some() && check.overlay_version != overlay;
+                        let launcher_changed =
+                            check.launcher_version.is_some() && check.launcher_version != launcher;
+                        if overlay_changed || launcher_changed {
+                            let kind = match (overlay_changed, launcher_changed) {
+                                (true, true) => "both",
+                                (true, false) => "overlay",
+                                _ => "launcher",
+                            };
+                            overlay = check.overlay_version.clone().or(overlay);
+                            launcher = check.launcher_version.clone().or(launcher);
+                            let _ = app.emit(
+                                "update-event",
+                                WatcherEvent {
+                                    kind: kind.to_string(),
+                                    overlay_version: overlay.clone(),
+                                    launcher_version: launcher.clone(),
+                                },
+                            );
+                        }
+                    }
+                    // No change: server already held ~25 s — loop right back.
+                }
+                Err(_) => std::thread::sleep(Duration::from_secs(30)),
+            }
+        }
+    });
+    true
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -210,7 +302,9 @@ pub fn run() {
             get_news,
             get_latest_launcher,
             get_collection,
-            check_updates
+            get_ping_stats,
+            check_updates,
+            start_update_watcher
         ])
         .run(tauri::generate_context!())
         .expect("error while running daedric-companion");

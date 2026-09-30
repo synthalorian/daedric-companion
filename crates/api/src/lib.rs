@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::time::{Duration, Instant};
 
 pub mod ping;
-pub use ping::raknet_ping;
+pub use ping::{raknet_ping, raknet_ping_stats, PingStats};
 
 pub const DEFAULT_HOST: &str = "play.daedriconline.com";
 pub const API_PORT: u16 = 3000;
@@ -116,6 +116,11 @@ impl Client {
     /// RakNet ping on the game port: online + latency in one packet.
     pub fn ping(&self) -> Result<Duration, ApiError> {
         Ok(raknet_ping(&self.host, GAME_PORT, Duration::from_secs(3))?)
+    }
+
+    /// Multi-ping quality sample: min/avg/max + packet loss over `count` probes.
+    pub fn ping_stats(&self, count: u32) -> PingStats {
+        raknet_ping_stats(&self.host, GAME_PORT, count, Duration::from_secs(2))
     }
 }
 

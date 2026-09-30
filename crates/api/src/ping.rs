@@ -39,3 +39,45 @@ pub fn raknet_ping(host: &str, port: u16, timeout: Duration) -> io::Result<Durat
     sock.recv(&mut buf)?;
     Ok(started.elapsed())
 }
+
+/// Multi-ping quality sample: min/avg/max latency + loss over `count` probes.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PingStats {
+    pub sent: u32,
+    pub answered: u32,
+    pub loss_pct: u32,
+    pub min_ms: Option<u64>,
+    pub avg_ms: Option<u64>,
+    pub max_ms: Option<u64>,
+}
+
+/// Fire `count` RakNet pings (100 ms apart) and summarize. A lost ping costs
+/// one `timeout` each — keep `count` small (5 probes ≈ ≤5 s worst case).
+pub fn raknet_ping_stats(host: &str, port: u16, count: u32, timeout: Duration) -> PingStats {
+    let mut rtts: Vec<u64> = Vec::new();
+    for i in 0..count {
+        if let Ok(d) = raknet_ping(host, port, timeout) {
+            rtts.push(d.as_millis() as u64);
+        }
+        if i + 1 < count {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+    let answered = rtts.len() as u32;
+    PingStats {
+        sent: count,
+        answered,
+        loss_pct: if count > 0 {
+            ((count - answered) * 100) / count
+        } else {
+            0
+        },
+        min_ms: rtts.iter().min().copied(),
+        avg_ms: if answered > 0 {
+            Some(rtts.iter().sum::<u64>() / answered as u64)
+        } else {
+            None
+        },
+        max_ms: rtts.iter().max().copied(),
+    }
+}

@@ -20,6 +20,22 @@ fn main() {
         Err(e) => println!("  failed: {e}"),
     }
 
+    println!("== ping quality (5 probes) ==");
+    let s = client.ping_stats(5);
+    println!(
+        "  {}/{} answered · loss {}% · min {:?} / avg {:?} / max {:?} ms",
+        s.answered, s.sent, s.loss_pct, s.min_ms, s.avg_ms, s.max_ms
+    );
+
+    println!("== collection ==");
+    match client.collection() {
+        Ok(c) => {
+            let s = serde_json::to_string_pretty(&c).unwrap();
+            println!("  {}", &s[..s.len().min(600)]);
+        }
+        Err(e) => println!("  failed: {e}"),
+    }
+
     println!("== news ==");
     match client.news() {
         Ok(n) => {

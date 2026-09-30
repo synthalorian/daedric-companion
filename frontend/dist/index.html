@@ -43,6 +43,19 @@
               <span class="stat-value" id="pulse-latency">— ms</span>
             </div>
           </div>
+          <div class="spark-row">
+            <div class="spark-box">
+              <span class="spark-label">PLAYERS</span>
+              <canvas id="spark-players" width="220" height="40"></canvas>
+            </div>
+            <div class="spark-box">
+              <span class="spark-label">LATENCY</span>
+              <canvas id="spark-latency" width="220" height="40"></canvas>
+            </div>
+          </div>
+          <div class="uptime-line" id="uptime-line">tracking session…</div>
+          <button id="ping-quality" class="btn small">QUALITY (5 PINGS)</button>
+          <div id="ping-stats" class="ping-stats hidden"></div>
         </div>
         <div id="pulse-error" class="error hidden"></div>
       </div>
@@ -91,7 +104,10 @@
         <div id="collection-content" class="hidden">
           <div class="stat"><span class="stat-label">SLUG</span><span class="stat-value" id="collection-slug">—</span></div>
           <div class="stat"><span class="stat-label">REVISION</span><span class="stat-value" id="collection-revision">—</span></div>
-          <div class="stat"><span class="stat-label">MODS</span><span class="stat-value" id="collection-mods">—</span></div>
+          <div class="stat"><span class="stat-label">MODS / FILES</span><span class="stat-value" id="collection-mods">—</span></div>
+          <div class="stat"><span class="stat-label">PUBLISHED</span><span class="stat-value small" id="collection-published">—</span></div>
+          <div class="stat"><span class="stat-label">FILE-SET SHA</span><span class="stat-value small mono" id="collection-sha">—</span></div>
+          <a id="collection-link" class="nexus-link hidden" href="#" target="_blank" rel="noopener">VIEW ON NEXUSMODS ↗</a>
         </div>
         <div id="collection-error" class="error hidden"></div>
       </div>
@@ -101,7 +117,10 @@
     <section class="panel" id="panel-update">
       <div class="panel-head">
         <h2>CLIENT UPDATE</h2>
-        <button id="refresh-update" class="btn small">CHECK</button>
+        <div class="panel-controls">
+          <span id="watcher-badge" class="watcher-badge hidden">WATCHING</span>
+          <button id="refresh-update" class="btn small">CHECK</button>
+        </div>
       </div>
       <div class="panel-body">
         <div class="update-root">
@@ -128,6 +147,8 @@
   </main>
 
   <footer class="foot">Made by synth with blackclaw</footer>
+
+  <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
 </body>
