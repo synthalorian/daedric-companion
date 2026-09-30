@@ -96,6 +96,35 @@
         <div id="collection-error" class="error hidden"></div>
       </div>
     </section>
+
+    <!-- CLIENT UPDATE -->
+    <section class="panel" id="panel-update">
+      <div class="panel-head">
+        <h2>CLIENT UPDATE</h2>
+        <button id="refresh-update" class="btn small">CHECK</button>
+      </div>
+      <div class="panel-body">
+        <div class="update-root">
+          <label for="skyrim-root-input">SKYRIM ROOT</label>
+          <input
+            id="skyrim-root-input"
+            type="text"
+            spellcheck="false"
+            value="/home/synth/.local/share/Steam/steamapps/common/Skyrim Special Edition"
+          />
+        </div>
+        <div class="spinner" id="spinner-update"></div>
+        <div id="update-content" class="hidden">
+          <div id="update-badge" class="badge offline">—</div>
+          <div class="stat"><span class="stat-label">INSTALLED OVERLAY</span><span class="stat-value" id="update-installed">—</span></div>
+          <div class="stat"><span class="stat-label">SERVER OVERLAY</span><span class="stat-value accent" id="update-server-overlay">—</span></div>
+          <div class="stat"><span class="stat-label">LAUNCHER FEED</span><span class="stat-value" id="update-launcher-feed">—</span></div>
+          <p class="note" id="update-note"></p>
+          <p class="hint">push channel holds ~25s when up to date — a slow check is a good sign</p>
+        </div>
+        <div id="update-error" class="error hidden"></div>
+      </div>
+    </section>
   </main>
 
   <footer class="foot">Made by synth with blackclaw</footer>

@@ -112,11 +112,41 @@ async function loadCollection() {
   }
 }
 
+async function loadUpdates() {
+  setLoading('update', true);
+  setError('update', null);
+  try {
+    const u = await invoke('check_updates', {
+      skyrimRoot: $('skyrim-root-input').value.trim(),
+      host: host(),
+    });
+    const badge = $('update-badge');
+    if (u.overlay_update_available) {
+      badge.textContent = 'UPDATE AVAILABLE';
+      badge.className = 'badge update-available';
+    } else {
+      badge.textContent = 'UP TO DATE';
+      badge.className = 'badge online';
+    }
+    $('update-installed').textContent = u.installed_overlay || 'not found';
+    $('update-server-overlay').textContent = u.server_overlay || '—';
+    $('update-launcher-feed').textContent = u.latest_launcher_feed || '—';
+    $('update-note').textContent = u.note || '';
+    $('update-content').classList.remove('hidden');
+  } catch (e) {
+    $('update-content').classList.add('hidden');
+    setError('update', String(e));
+  } finally {
+    setLoading('update', false);
+  }
+}
+
 function refreshAll() {
   loadPulse();
   loadNews();
   loadLauncher();
   loadCollection();
+  loadUpdates();
 }
 
 let timer = null;
@@ -132,6 +162,7 @@ $('refresh-pulse').addEventListener('click', loadPulse);
 $('refresh-news').addEventListener('click', loadNews);
 $('refresh-launcher').addEventListener('click', loadLauncher);
 $('refresh-collection').addEventListener('click', loadCollection);
+$('refresh-update').addEventListener('click', loadUpdates);
 $('apply-host').addEventListener('click', refreshAll);
 $('host-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') refreshAll();

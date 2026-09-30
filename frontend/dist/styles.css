@@ -139,6 +139,38 @@ body {
 
 .badge.online { color: #7fb069; border-color: #7fb069; }
 .badge.offline { color: var(--blood); border-color: var(--blood); }
+.badge.update-available { color: #f0d9a8; border-color: #b8860b; }
+
+.update-root {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.update-root label {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--steel);
+}
+
+.update-root input {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--steel);
+  color: var(--bone, #d8d3c8);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.hint {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--steel);
+  opacity: 0.7;
+  font-style: italic;
+}
 
 .pulse-stats { display: flex; gap: 40px; }
 

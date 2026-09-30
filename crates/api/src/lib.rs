@@ -134,6 +134,59 @@ pub fn pulse(host: &str) -> Pulse {
     }
 }
 
+/// Typed result of a `daedricWaitUpdate` long-poll probe.
+///
+/// The server answers `{change, overlayVersion, launcherVersion}` when either
+/// version differs from its current build, or `{retryIn}` after holding ~25 s
+/// when nothing changed (i.e. the client is up to date).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UpdateCheck {
+    pub change: bool,
+    pub overlay_version: Option<String>,
+    pub launcher_version: Option<String>,
+    /// Raw `retryIn` value — units are server-defined, kept loose.
+    pub retry_in: Option<serde_json::Value>,
+}
+
+impl Client {
+    /// Long-poll update check. Pass the client's current versions
+    /// (`None` = unknown). Blocks up to ~25 s when there is no change;
+    /// the underlying HTTP timeout is 40 s, matching the launcher.
+    pub fn check_update(
+        &self,
+        overlay_version: Option<&str>,
+        launcher_version: Option<&str>,
+    ) -> Result<UpdateCheck, ApiError> {
+        let url = format!("http://{}:{}/rpc/daedricWaitUpdate", self.host, API_PORT);
+        let agent = ureq::AgentBuilder::new()
+            .timeout(Duration::from_secs(40))
+            .build();
+        let body = agent
+            .post(&url)
+            .set("content-type", "application/json")
+            .send_json(ureq::json!({
+                "payload": {
+                    "overlayVersion": overlay_version,
+                    "launcherVersion": launcher_version,
+                }
+            }))?
+            .into_string()?;
+        let v: serde_json::Value = serde_json::from_str(&body)?;
+        Ok(UpdateCheck {
+            change: v.get("change").and_then(|c| c.as_bool()).unwrap_or(false),
+            overlay_version: v
+                .get("overlayVersion")
+                .and_then(|s| s.as_str())
+                .map(|s| s.to_string()),
+            launcher_version: v
+                .get("launcherVersion")
+                .and_then(|s| s.as_str())
+                .map(|s| s.to_string()),
+            retry_in: v.get("retryIn").cloned(),
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct Pulse {
     pub players: Option<u32>,
