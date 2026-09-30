@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E1E26"/>
+      <stop offset="1" stop-color="#101014"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#E5383B"/>
+      <stop offset="0.35" stop-color="#C1121F"/>
+      <stop offset="0.75" stop-color="#4A0B10"/>
+      <stop offset="1" stop-color="#101014"/>
+    </radialGradient>
+    <radialGradient id="orbGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#C1121F" stop-opacity="0.45"/>
+      <stop offset="0.6" stop-color="#C1121F" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#C1121F" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="steelClaw" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D8D3C8"/>
+      <stop offset="0.55" stop-color="#8F959C"/>
+      <stop offset="1" stop-color="#5C6167"/>
+    </linearGradient>
+  </defs>
+
+  <!-- tile -->
+  <rect x="26" y="26" width="460" height="460" rx="96" fill="url(#tile)" stroke="#2A2A31" stroke-width="4"/>
+
+  <!-- glow halo -->
+  <circle cx="256" cy="256" r="150" fill="url(#orbGlow)"/>
+
+  <!-- claw setting: two side prongs arcing over the orb -->
+  <path d="M148 268 Q150 168 236 126 L246 150 Q182 186 180 270 Z" fill="url(#steelClaw)"/>
+  <path d="M364 268 Q362 168 276 126 L266 150 Q330 186 332 270 Z" fill="url(#steelClaw)"/>
+
+  <!-- the orb -->
+  <circle cx="256" cy="256" r="92" fill="url(#orb)" stroke="#000000" stroke-width="5"/>
+  <ellipse cx="228" cy="226" rx="30" ry="20" fill="#F5F1E8" opacity="0.28"/>
+
+  <!-- claw base -->
+  <path d="M172 338 Q256 380 340 338 L340 370 Q256 412 172 370 Z" fill="url(#steelClaw)"/>
+  <rect x="196" y="376" width="120" height="18" rx="9" fill="#5C6167"/>
+</svg>
