@@ -400,10 +400,15 @@ let profile = null;
 async function loadProfile() {
   try {
     profile = await invoke('profile_load');
+    renderRoster();
     renderCharacter();
     renderContacts();
     renderJournal();
     renderRumors();
+    renderPurse();
+    renderFactions();
+    renderSessions();
+    syncSessionChip();
   } catch (e) {
     toast('profile load failed: ' + String(e));
   }
@@ -490,6 +495,9 @@ $('character-save').addEventListener('click', async () => {
   try {
     await invoke('character_save', { character });
     profile.character = character;
+    const row = (profile.roster || []).find((r) => r.id === profile.active_id);
+    if (row) row.name = character.name || 'Unnamed';
+    renderRoster();
     const flash = $('character-saved');
     flash.classList.remove('hidden');
     setTimeout(() => flash.classList.add('hidden'), 2500);
@@ -770,6 +778,500 @@ function renderRumors() {
   });
 }
 
+// ---------- roster, sessions, purse, factions, calendar ----------
+
+const STANDINGS = [
+  { v: -2, label: 'HOSTILE' },
+  { v: -1, label: 'COLD' },
+  { v: 0, label: 'NEUTRAL' },
+  { v: 1, label: 'FRIENDLY' },
+  { v: 2, label: 'HONORED' },
+];
+
+const MONTHS = [
+  { name: "Morning Star", days: 31, sign: "The Ritual" },
+  { name: "Sun's Dawn", days: 28, sign: "The Lover" },
+  { name: "First Seed", days: 31, sign: "The Lord" },
+  { name: "Rain's Hand", days: 30, sign: "The Mage" },
+  { name: "Second Seed", days: 31, sign: "The Shadow" },
+  { name: "Midyear", days: 30, sign: "The Steed" },
+  { name: "Sun's Height", days: 31, sign: "The Apprentice" },
+  { name: "Last Seed", days: 31, sign: "The Warrior" },
+  { name: "Hearthfire", days: 30, sign: "The Lady" },
+  { name: "Frostfall", days: 31, sign: "The Tower" },
+  { name: "Sun's Dusk", days: 30, sign: "The Atronach" },
+  { name: "Evening Star", days: 31, sign: "The Thief" },
+];
+
+let selectedMonth = 7;
+
+function fmtClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return [h, m, sec].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+function openSession() {
+  return (profile?.sessions || []).find((s) => s.ended == null) || null;
+}
+
+function fieldMs() {
+  const now = Date.now();
+  return (profile?.sessions || []).reduce((sum, s) => {
+    const end = s.ended == null ? now : s.ended;
+    return sum + Math.max(0, end - s.started);
+  }, 0);
+}
+
+function collectCharacter() {
+  const character = {};
+  CH_TEXT.forEach((f) => {
+    character[f.replace(/-/g, '_')] = $('ch-' + f).value.trim();
+  });
+  CH_NUM.forEach((f) => {
+    const v = $('ch-' + f).value;
+    character[f] = v === '' ? null : parseInt(v, 10);
+  });
+  character.skills = collectSkills();
+  return character;
+}
+
+async function persistSheet() {
+  if (!profile) return;
+  const character = collectCharacter();
+  await invoke('character_save', { character });
+  profile.character = character;
+}
+
+function renderRoster() {
+  const sel = $('char-switch');
+  if (!sel || !profile) return;
+  const current = profile.active_id;
+  sel.innerHTML = '';
+  (profile.roster || []).forEach((r) => {
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = r.name || 'Unnamed';
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+function syncSessionChip() {
+  const chip = $('session-chip');
+  if (!chip) return;
+  const open = openSession();
+  chip.classList.toggle('on', !!open);
+  $('session-state').textContent = open ? 'ON THE FIELD' : 'SHEATHED';
+  $('session-clock').textContent = open
+    ? fmtClock(Date.now() - open.started)
+    : fmtClock(fieldMs());
+  $('session-toggle').textContent = open ? 'STOP' : 'START';
+  const total = $('session-total');
+  if (total) total.textContent = fmtClock(fieldMs());
+}
+
+function renderSessions() {
+  const list = $('session-list');
+  if (!list || !profile) return;
+  list.innerHTML = '';
+  const sessions = profile.sessions || [];
+  if (sessions.length === 0) {
+    list.innerHTML = '<p class="empty-note">no time on the field yet — hit START when you sit down.</p>';
+    return;
+  }
+  sessions.forEach((s) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    const title = document.createElement('span');
+    title.className = 'card-title';
+    const span = (s.ended == null ? Date.now() : s.ended) - s.started;
+    title.textContent = (s.ended == null ? 'OPEN · ' : '') + fmtClock(span);
+    const when = document.createElement('span');
+    when.className = 'card-meta dim';
+    when.textContent = new Date(s.started).toLocaleString();
+    head.appendChild(title);
+    head.appendChild(when);
+    card.appendChild(head);
+    if (s.note) {
+      const note = document.createElement('p');
+      note.className = 'card-body';
+      note.textContent = s.note;
+      card.appendChild(note);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const del = document.createElement('button');
+    del.className = 'btn small danger';
+    del.type = 'button';
+    del.textContent = s.ended == null ? 'DISCARD' : 'BURN';
+    del.addEventListener('click', async () => {
+      await invoke('session_delete', { id: s.id });
+      await loadProfile();
+    });
+    actions.appendChild(del);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+function septims(n) {
+  const sign = n < 0 ? '−' : '';
+  return sign + Math.abs(n).toLocaleString('en-US');
+}
+
+function renderPurse() {
+  const bal = $('purse-balance');
+  if (!bal || !profile) return;
+  const n = profile.purse_balance || 0;
+  bal.textContent = septims(n);
+  bal.className = 'purse-balance' + (n < 0 ? ' negative' : n > 0 ? ' positive' : '');
+  const list = $('purse-list');
+  list.innerHTML = '';
+  const entries = profile.purse || [];
+  if (entries.length === 0) {
+    list.innerHTML = '<p class="empty-note">the purse is empty.</p>';
+    return;
+  }
+  entries.forEach((e) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    const amt = document.createElement('span');
+    amt.className = 'card-title ' + (e.amount < 0 ? 'coin-out' : 'coin-in');
+    amt.textContent = (e.amount < 0 ? '−' : '+') + Math.abs(e.amount).toLocaleString('en-US');
+    const when = document.createElement('span');
+    when.className = 'card-meta dim';
+    when.textContent = new Date(e.created).toLocaleString();
+    head.appendChild(amt);
+    head.appendChild(when);
+    card.appendChild(head);
+    const bits = [e.note, e.counterparty].filter(Boolean);
+    if (bits.length) {
+      const meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = bits.join(' · ');
+      card.appendChild(meta);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const del = document.createElement('button');
+    del.className = 'btn small danger';
+    del.type = 'button';
+    del.textContent = 'STRIKE';
+    del.addEventListener('click', async () => {
+      await invoke('purse_delete', { id: e.id });
+      await loadProfile();
+    });
+    actions.appendChild(del);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+function renderFactions() {
+  const list = $('faction-list');
+  if (!list || !profile) return;
+  list.innerHTML = '';
+  const factions = profile.factions || [];
+  if (factions.length === 0) {
+    list.innerHTML = '<p class="empty-note">no banners recorded.</p>';
+    return;
+  }
+  factions.forEach((f) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const name = document.createElement('input');
+    name.type = 'text';
+    name.value = f.name || '';
+    name.spellcheck = false;
+    name.style.width = '100%';
+    name.style.background = 'var(--bg)';
+    name.style.border = '1px solid var(--steel-dim)';
+    name.style.color = 'var(--bone)';
+    name.style.fontFamily = 'inherit';
+    name.style.fontSize = '16px';
+    name.style.padding = '6px 10px';
+    card.appendChild(name);
+
+    const rank = document.createElement('input');
+    rank.type = 'text';
+    rank.value = f.rank || '';
+    rank.placeholder = 'rank';
+    rank.spellcheck = false;
+    rank.style.marginTop = '8px';
+    rank.style.width = '100%';
+    rank.style.background = 'var(--bg)';
+    rank.style.border = '1px solid var(--steel-dim)';
+    rank.style.color = 'var(--bone)';
+    rank.style.fontFamily = 'inherit';
+    rank.style.padding = '6px 10px';
+    card.appendChild(rank);
+
+    const notes = document.createElement('textarea');
+    notes.rows = 2;
+    notes.value = f.notes || '';
+    notes.placeholder = 'notes';
+    notes.spellcheck = false;
+    notes.style.marginTop = '8px';
+    notes.style.width = '100%';
+    notes.style.background = 'var(--bg)';
+    notes.style.border = '1px solid var(--steel-dim)';
+    notes.style.color = 'var(--bone)';
+    notes.style.fontFamily = 'inherit';
+    notes.style.padding = '6px 10px';
+    card.appendChild(notes);
+
+    let standing = f.standing || 0;
+    const row = document.createElement('div');
+    row.className = 'stand-row';
+    const buttons = [];
+    STANDINGS.forEach((s) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small stand-btn' + (s.v === standing ? ' selected' : '');
+      btn.textContent = s.label;
+      btn.addEventListener('click', () => {
+        standing = s.v;
+        buttons.forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+      buttons.push(btn);
+      row.appendChild(btn);
+    });
+    card.appendChild(row);
+
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'btn small';
+    save.textContent = 'SAVE';
+    save.addEventListener('click', async () => {
+      const next = name.value.trim();
+      if (!next) {
+        toast('a faction needs a name');
+        return;
+      }
+      try {
+        await invoke('faction_save', {
+          faction: {
+            id: f.id,
+            name: next,
+            standing,
+            rank: rank.value.trim(),
+            notes: notes.value.trim(),
+          },
+        });
+        await loadProfile();
+      } catch (e) {
+        toast(String(e));
+      }
+    });
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn small danger';
+    del.textContent = 'LEAVE';
+    del.addEventListener('click', async () => {
+      await invoke('faction_delete', { id: f.id });
+      await loadProfile();
+    });
+    actions.appendChild(save);
+    actions.appendChild(del);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+function ordinal(n) {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return n + 'th';
+  switch (n % 10) {
+    case 1: return n + 'st';
+    case 2: return n + 'nd';
+    case 3: return n + 'rd';
+    default: return n + 'th';
+  }
+}
+
+function composedDate() {
+  const month = MONTHS[selectedMonth];
+  let day = parseInt($('cal-day').value, 10) || 1;
+  day = Math.max(1, Math.min(month.days, day));
+  $('cal-day').max = String(month.days);
+  $('cal-day').value = day;
+  const year = parseInt($('cal-year').value, 10) || 201;
+  const text = $('cal-era').value + ' ' + year + ', ' + ordinal(day) + ' of ' + month.name;
+  $('cal-composed').textContent = text;
+  return text;
+}
+
+function renderMonths() {
+  const grid = $('month-grid');
+  grid.innerHTML = '';
+  MONTHS.forEach((m, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'month-card' + (i === selectedMonth ? ' selected' : '');
+    btn.textContent = m.name;
+    const small = document.createElement('small');
+    small.textContent = m.days + ' days · ' + m.sign;
+    btn.appendChild(small);
+    btn.addEventListener('click', () => {
+      selectedMonth = i;
+      renderMonths();
+      composedDate();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+let retireArmed = false;
+let retireTimer = null;
+
+$('char-switch').addEventListener('change', async () => {
+  const id = $('char-switch').value;
+  if (!profile || id === profile.active_id) return;
+  try {
+    await persistSheet();
+    await invoke('character_switch', { id });
+    await loadProfile();
+  } catch (e) {
+    toast('switch failed: ' + String(e));
+    renderRoster();
+  }
+});
+
+$('char-new').addEventListener('click', async () => {
+  const name = $('char-new-name').value.trim();
+  if (!name) {
+    toast('an alt needs a name');
+    return;
+  }
+  try {
+    await persistSheet();
+    await invoke('character_create', { name });
+    $('char-new-name').value = '';
+    await loadProfile();
+  } catch (e) {
+    toast('could not add the alt: ' + String(e));
+  }
+});
+
+$('char-retire').addEventListener('click', async () => {
+  if (!profile || (profile.roster || []).length < 2) {
+    toast('the last name stays on the roll');
+    return;
+  }
+  if (!retireArmed) {
+    retireArmed = true;
+    $('char-retire').textContent = 'CONFIRM';
+    retireTimer = setTimeout(() => {
+      retireArmed = false;
+      $('char-retire').textContent = 'RETIRE';
+    }, 4000);
+    return;
+  }
+  clearTimeout(retireTimer);
+  retireArmed = false;
+  $('char-retire').textContent = 'RETIRE';
+  try {
+    await invoke('character_delete', { id: profile.active_id });
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+$('session-toggle').addEventListener('click', async () => {
+  try {
+    if (openSession()) {
+      await invoke('session_stop', { note: $('session-note').value.trim() });
+      $('session-note').value = '';
+    } else {
+      await invoke('session_start');
+    }
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+async function addCoin(sign) {
+  const amount = Math.abs(parseInt($('purse-amount').value, 10) || 0);
+  if (!amount) {
+    toast('amount has to be at least 1');
+    return;
+  }
+  try {
+    await invoke('purse_add', {
+      amount: sign * amount,
+      note: $('purse-note').value.trim(),
+      counterparty: $('purse-who').value.trim(),
+    });
+    $('purse-note').value = '';
+    $('purse-who').value = '';
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
+  }
+}
+
+$('purse-in').addEventListener('click', () => addCoin(1));
+$('purse-out').addEventListener('click', () => addCoin(-1));
+
+$('fac-add').addEventListener('click', async () => {
+  const name = $('fac-name').value.trim();
+  if (!name) {
+    toast('a faction needs a name');
+    return;
+  }
+  try {
+    await invoke('faction_save', {
+      faction: { id: '', name, standing: 0, rank: '', notes: '' },
+    });
+    $('fac-name').value = '';
+    await loadProfile();
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+renderMonths();
+['cal-era', 'cal-year', 'cal-day'].forEach((id) => {
+  $(id).addEventListener('input', composedDate);
+  $(id).addEventListener('change', composedDate);
+});
+composedDate();
+
+$('cal-stamp').addEventListener('click', async () => {
+  const text = composedDate();
+  $('ch-ingame-date').value = text;
+  try {
+    await persistSheet();
+    const row = (profile.roster || []).find((r) => r.id === profile.active_id);
+    if (row) row.name = profile.character.name || 'Unnamed';
+    toast('stamped — ' + text);
+  } catch (e) {
+    toast('stamp failed: ' + String(e));
+  }
+});
+
+$('cal-copy').addEventListener('click', async () => {
+  const text = composedDate();
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('copied — ' + text);
+  } catch {
+    toast(text);
+  }
+});
+
 // ---------- dice tray ----------
 
 const diceHistory = [];
@@ -861,4 +1363,5 @@ refreshAll();
 startWatcher();
 renderSparklines();
 renderUptime();
+setInterval(syncSessionChip, 1000);
 loadProfile();

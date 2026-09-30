@@ -16,6 +16,9 @@
       <button class="tab" data-view="chronicle">CHRONICLE</button>
       <button class="tab" data-view="rumors">RUMORS</button>
       <button class="tab" data-view="dice">DICE</button>
+      <button class="tab" data-view="purse">PURSE</button>
+      <button class="tab" data-view="factions">FACTIONS</button>
+      <button class="tab" data-view="calendar">CALENDAR</button>
     </nav>
     <div class="host-bar">
       <label for="host-input">HOST</label>
@@ -23,6 +26,22 @@
       <button id="apply-host" class="btn">APPLY</button>
     </div>
   </header>
+
+  <div class="field-strip">
+    <div class="roster">
+      <label for="char-switch">CHARACTER</label>
+      <select id="char-switch"></select>
+      <input id="char-new-name" type="text" placeholder="new name" spellcheck="false" />
+      <button id="char-new" class="btn small" type="button">+ ALT</button>
+      <button id="char-retire" class="btn small danger" type="button">RETIRE</button>
+    </div>
+    <div class="session-chip" id="session-chip">
+      <span id="session-state">SHEATHED</span>
+      <span id="session-clock">00:00:00</span>
+      <input id="session-note" type="text" placeholder="session note" spellcheck="false" />
+      <button id="session-toggle" class="btn small" type="button">START</button>
+    </div>
+  </div>
 
   <!-- ================= SERVER ================= -->
   <main class="grid view" id="view-server">
@@ -207,6 +226,15 @@
       <button id="character-save" class="btn">SAVE CHARACTER</button>
       <span id="character-saved" class="saved-flash hidden">SAVED — the record holds</span>
     </div>
+    <section class="panel session-panel">
+      <div class="panel-head">
+        <h2>TIME ON THE FIELD</h2>
+        <span id="session-total" class="stat-value">00:00:00</span>
+      </div>
+      <div class="panel-body">
+        <div id="session-list" class="card-list"></div>
+      </div>
+    </section>
   </main>
 
   <!-- ================= CONTACTS ================= -->
@@ -309,6 +337,71 @@
         <ul id="dice-history" class="dice-history"></ul>
       </div>
     </section>
+  </main>
+
+  <!-- ================= PURSE ================= -->
+  <main class="view hidden" id="view-purse">
+    <section class="panel">
+      <div class="panel-head"><h2>COIN PURSE</h2></div>
+      <div class="panel-body">
+        <div id="purse-balance" class="purse-balance">0</div>
+        <div class="purse-unit">SEPTIMS</div>
+        <div class="purse-form">
+          <input id="purse-amount" type="number" min="1" value="1" />
+          <input id="purse-note" type="text" placeholder="for what" spellcheck="false" />
+          <input id="purse-who" type="text" placeholder="paid to / from" spellcheck="false" />
+          <button id="purse-in" class="btn" type="button">IN</button>
+          <button id="purse-out" class="btn" type="button">OUT</button>
+        </div>
+        <div id="purse-list" class="card-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= FACTIONS ================= -->
+  <main class="view hidden" id="view-factions">
+    <div class="toolbar">
+      <input id="fac-name" type="text" placeholder="faction name" spellcheck="false" />
+      <button id="fac-add" class="btn" type="button">+ ADD</button>
+    </div>
+    <div id="faction-list" class="card-list"></div>
+  </main>
+
+  <!-- ================= CALENDAR ================= -->
+  <main class="view hidden" id="view-calendar">
+    <div class="sheet-grid">
+      <section class="panel">
+        <div class="panel-head"><h2>MONTHS</h2></div>
+        <div class="panel-body">
+          <div id="month-grid" class="month-grid"></div>
+          <p class="hint">Skyrim month lengths. Weekday is not calculated — there is no agreed epoch.</p>
+          <div class="weekday-row">Sundas · Morndas · Tirdas · Middas · Turdas · Fredas · Loredas</div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>DATE HELPER</h2></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <label class="field"><span>ERA</span>
+              <select id="cal-era">
+                <option>1E</option>
+                <option>2E</option>
+                <option>3E</option>
+                <option selected>4E</option>
+                <option>5E</option>
+              </select>
+            </label>
+            <label class="field"><span>YEAR</span><input id="cal-year" type="number" min="1" value="201" /></label>
+            <label class="field"><span>DAY</span><input id="cal-day" type="number" min="1" max="31" value="15" /></label>
+          </div>
+          <p id="cal-composed" class="composed-date">4E 201, 15th of Last Seed</p>
+          <div class="card-actions">
+            <button id="cal-stamp" class="btn" type="button">STAMP ON CHARACTER</button>
+            <button id="cal-copy" class="btn small" type="button">COPY</button>
+          </div>
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="foot">Made by synth with blackclaw</footer>

@@ -6,7 +6,10 @@ use daedric_api::{Client, DEFAULT_HOST};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use store::{Character, Contact, JournalEntry, Profile, Rumor, Store};
+use store::{
+    Character, CoinEntry, Contact, FactionStanding, JournalEntry, PlaySession, Profile, Rumor,
+    Store,
+};
 use tauri::{Emitter, Manager};
 
 fn host_or_default(host: Option<String>) -> String {
@@ -349,6 +352,71 @@ fn rumor_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
     state.delete_rumor(&id)
 }
 
+#[tauri::command]
+fn character_create(state: tauri::State<Store>, name: String) -> Result<Profile, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("an alt needs a name".into());
+    }
+    state.create_character(name)
+}
+
+#[tauri::command]
+fn character_switch(state: tauri::State<Store>, id: String) -> Result<Profile, String> {
+    state.switch_character(&id)
+}
+
+#[tauri::command]
+fn character_delete(state: tauri::State<Store>, id: String) -> Result<Profile, String> {
+    state.delete_character(&id)
+}
+
+#[tauri::command]
+fn session_start(state: tauri::State<Store>) -> Result<PlaySession, String> {
+    state.start_session()
+}
+
+#[tauri::command]
+fn session_stop(state: tauri::State<Store>, note: String) -> Result<PlaySession, String> {
+    state.stop_session(note)
+}
+
+#[tauri::command]
+fn session_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_session(&id)
+}
+
+#[tauri::command]
+fn purse_add(
+    state: tauri::State<Store>,
+    amount: i64,
+    note: String,
+    counterparty: String,
+) -> Result<CoinEntry, String> {
+    state.add_coin(amount, note, counterparty)
+}
+
+#[tauri::command]
+fn purse_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_coin(&id)
+}
+
+#[tauri::command]
+fn faction_save(
+    state: tauri::State<Store>,
+    faction: FactionStanding,
+) -> Result<FactionStanding, String> {
+    if faction.name.trim().is_empty() {
+        return Err("a faction needs a name".into());
+    }
+    state.save_faction(faction)
+}
+
+#[tauri::command]
+fn faction_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
+    state.delete_faction(&id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -373,7 +441,17 @@ pub fn run() {
             journal_delete,
             rumor_add,
             rumor_toggle,
-            rumor_delete
+            rumor_delete,
+            character_create,
+            character_switch,
+            character_delete,
+            session_start,
+            session_stop,
+            session_delete,
+            purse_add,
+            purse_delete,
+            faction_save,
+            faction_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running daedric-companion");

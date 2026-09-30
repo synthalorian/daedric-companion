@@ -683,3 +683,128 @@ main.view { overflow: auto; }
   text-align: center;
   letter-spacing: 1px;
 }
+
+.field-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--steel-dim);
+  flex-wrap: wrap;
+  background: #0c0c10;
+}
+
+.roster, .session-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-strip label, #session-state {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--steel);
+}
+
+.field-strip input, .field-strip select {
+  background: var(--bg-panel);
+  border: 1px solid var(--steel-dim);
+  color: var(--bone);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+.field-strip select, .field-strip button { cursor: pointer; }
+#char-switch { min-width: 180px; }
+#char-new-name, #session-note { width: 150px; }
+
+#session-clock {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  min-width: 88px;
+}
+
+.session-chip.on #session-clock,
+.session-chip.on #session-state { color: var(--blood); }
+
+.session-panel { margin: 0 20px 14px; }
+
+.purse-balance {
+  font-size: 42px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.purse-balance.negative { color: var(--blood); }
+.purse-balance.positive { color: #7fb069; }
+
+.purse-unit {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--steel);
+  margin: 6px 0 14px;
+}
+
+.purse-form, .stand-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.purse-form input {
+  background: var(--bg);
+  border: 1px solid var(--steel-dim);
+  color: var(--bone);
+  font-family: inherit;
+  padding: 7px 10px;
+}
+
+#purse-amount { width: 90px; }
+#purse-note, #purse-who { flex: 1; min-width: 140px; }
+
+.coin-in { color: #7fb069; }
+.coin-out { color: var(--blood); }
+
+.stand-btn.selected { border-color: var(--blood); color: var(--blood); }
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.month-card {
+  background: var(--bg);
+  border: 1px solid var(--steel-dim);
+  color: var(--bone);
+  font-family: inherit;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.month-card small {
+  display: block;
+  color: var(--steel);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.month-card.selected { border-color: var(--blood); color: var(--blood); }
+
+.composed-date {
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  margin: 16px 0 12px;
+}
+
+.weekday-row {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--steel);
+  letter-spacing: 0.5px;
+}

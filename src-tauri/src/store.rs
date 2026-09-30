@@ -1,15 +1,23 @@
-//! Local RP profile store: character sheet, contacts, chronicle, rumors.
+//! Local RP profile store.
 //!
-//! One JSON document at `<config>/daedric-companion/profile.json`, cached in a
-//! Mutex, written whole on every mutation (tmp + rename so a crash mid-write
-//! never leaves a torn file). All dates the user types are freeform — RP
-//! servers run on Tamrielic dates ("4E 201, 15th of Last Seed"), not epoch.
+//! One JSON document at `<config>/daedric-companion/profile.json`. The on-disk
+//! shape is a roster of character books (sheet, contacts, chronicle, rumors,
+//! purse, factions, sessions). `profile()` flattens the *active* book so the
+//! shell keeps reading `character` / `contacts` / `journal` / `rumors`.
+//!
+//! A pre-roster file (top-level `character` and no `characters` key) is wrapped
+//! into a single book on load and rewritten. Dates the user types stay
+//! freeform — RP runs on Tamrielic dates, not epoch.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static ID_SEQ: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Skill {
@@ -71,7 +79,6 @@ pub struct Contact {
     pub faction: String,
     #[serde(default)]
     pub role: String,
-    /// Where we met (freeform).
     #[serde(default)]
     pub met_at: String,
     #[serde(default)]
@@ -89,7 +96,6 @@ pub struct Contact {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub id: String,
-    /// Epoch millis — real time, for ordering and display.
     pub created: u64,
     #[serde(default)]
     pub title: String,
@@ -111,21 +117,97 @@ pub struct Rumor {
     pub done: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// One sitting. `ended == None` means the clock is still running.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaySession {
+    pub id: String,
+    pub started: u64,
+    #[serde(default)]
+    pub ended: Option<u64>,
+    #[serde(default)]
+    pub note: String,
+}
+
+/// Septim ledger line. Positive = in, negative = out.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoinEntry {
+    pub id: String,
+    pub created: u64,
+    pub amount: i64,
+    #[serde(default)]
+    pub note: String,
+    #[serde(default)]
+    pub counterparty: String,
+}
+
+/// Faction attitude: -2 hostile, -1 cold, 0 neutral, +1 friendly, +2 honored.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FactionStanding {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub standing: i8,
+    #[serde(default)]
+    pub rank: String,
+    #[serde(default)]
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CharacterBook {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    character: Character,
+    #[serde(default)]
+    contacts: Vec<Contact>,
+    #[serde(default)]
+    journal: Vec<JournalEntry>,
+    #[serde(default)]
+    rumors: Vec<Rumor>,
+    #[serde(default)]
+    purse: Vec<CoinEntry>,
+    #[serde(default)]
+    factions: Vec<FactionStanding>,
+    #[serde(default)]
+    sessions: Vec<PlaySession>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Document {
+    #[serde(default)]
+    active_id: String,
+    #[serde(default)]
+    characters: Vec<CharacterBook>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RosterEntry {
+    pub id: String,
+    pub name: String,
+}
+
+/// View of the active book, plus the roster for the switcher.
+/// Flattened keys match the pre-roster frontend.
+#[derive(Debug, Clone, Serialize)]
 pub struct Profile {
-    #[serde(default)]
+    pub active_id: String,
+    pub roster: Vec<RosterEntry>,
     pub character: Character,
-    #[serde(default)]
     pub contacts: Vec<Contact>,
-    #[serde(default)]
     pub journal: Vec<JournalEntry>,
-    #[serde(default)]
     pub rumors: Vec<Rumor>,
+    pub purse: Vec<CoinEntry>,
+    pub factions: Vec<FactionStanding>,
+    pub sessions: Vec<PlaySession>,
+    pub purse_balance: i64,
+    pub time_on_field_ms: u64,
 }
 
 pub struct Store {
     path: PathBuf,
-    profile: Mutex<Profile>,
+    doc: Mutex<Document>,
 }
 
 fn now_ms() -> u64 {
@@ -135,9 +217,124 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// Timestamp ids — unique enough for a single-user local store.
 fn new_id() -> String {
-    format!("{:x}", now_ms())
+    let n = ID_SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("{:x}{:x}", now_ms(), n)
+}
+
+fn display_name(name: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        "Unnamed".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+impl CharacterBook {
+    fn blank() -> Self {
+        CharacterBook {
+            id: new_id(),
+            character: Character::default(),
+            contacts: Vec::new(),
+            journal: Vec::new(),
+            rumors: Vec::new(),
+            purse: Vec::new(),
+            factions: Vec::new(),
+            sessions: Vec::new(),
+        }
+    }
+}
+
+impl Default for Document {
+    fn default() -> Self {
+        let book = CharacterBook::blank();
+        Document {
+            active_id: book.id.clone(),
+            characters: vec![book],
+        }
+    }
+}
+
+fn normalize(doc: &mut Document) {
+    if doc.characters.is_empty() {
+        let book = CharacterBook::blank();
+        doc.active_id = book.id.clone();
+        doc.characters.push(book);
+        return;
+    }
+    for book in &mut doc.characters {
+        if book.id.is_empty() {
+            book.id = new_id();
+        }
+    }
+    if !doc.characters.iter().any(|c| c.id == doc.active_id) {
+        doc.active_id = doc.characters[0].id.clone();
+    }
+}
+
+fn legacy_wrap(obj: &serde_json::Map<String, Value>) -> Document {
+    let character = obj
+        .get("character")
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let contacts = obj
+        .get("contacts")
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let journal = obj
+        .get("journal")
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let rumors = obj
+        .get("rumors")
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let book = CharacterBook {
+        id: new_id(),
+        character,
+        contacts,
+        journal,
+        rumors,
+        purse: Vec::new(),
+        factions: Vec::new(),
+        sessions: Vec::new(),
+    };
+    Document {
+        active_id: book.id.clone(),
+        characters: vec![book],
+    }
+}
+
+/// `Some` when the value is an object we understand. `None` leaves a corrupt
+/// file on disk untouched.
+fn migrate(value: Value) -> Option<Document> {
+    let obj = value.as_object()?.clone();
+    if obj.contains_key("characters") {
+        let mut doc: Document = serde_json::from_value(Value::Object(obj)).ok()?;
+        normalize(&mut doc);
+        return Some(doc);
+    }
+    let mut doc = legacy_wrap(&obj);
+    normalize(&mut doc);
+    Some(doc)
+}
+
+fn active_mut(doc: &mut Document) -> &mut CharacterBook {
+    normalize(doc);
+    let id = doc.active_id.clone();
+    doc.characters.iter_mut().find(|c| c.id == id).unwrap()
+}
+
+fn field_ms(sessions: &[PlaySession], now: u64) -> u64 {
+    sessions
+        .iter()
+        .map(|s| s.ended.unwrap_or(now).saturating_sub(s.started))
+        .sum()
 }
 
 impl Store {
@@ -145,52 +342,145 @@ impl Store {
         let dir = config_dir.join("daedric-companion");
         let _ = fs::create_dir_all(&dir);
         let path = dir.join("profile.json");
-        let profile = fs::read_to_string(&path)
-            .ok()
-            .and_then(|t| serde_json::from_str(&t).ok())
-            .unwrap_or_default();
-        Store {
+        let raw = fs::read_to_string(&path).ok();
+        let (doc, rewrite) = match &raw {
+            None => (Document::default(), false),
+            Some(text) => match serde_json::from_str::<Value>(text) {
+                Err(_) => (Document::default(), false),
+                Ok(value) => {
+                    let legacy = value
+                        .as_object()
+                        .map(|o| !o.contains_key("characters"))
+                        .unwrap_or(true);
+                    match migrate(value) {
+                        Some(doc) => (doc, legacy),
+                        None => (Document::default(), false),
+                    }
+                }
+            },
+        };
+        let store = Store {
             path,
-            profile: Mutex::new(profile),
+            doc: Mutex::new(doc),
+        };
+        if rewrite {
+            if let Ok(doc) = store.doc.lock() {
+                let _ = store.save_doc(&doc);
+            }
         }
+        store
     }
 
-    fn save(&self, profile: &Profile) -> Result<(), String> {
+    fn save_doc(&self, doc: &Document) -> Result<(), String> {
         let tmp = self.path.with_extension("json.tmp");
-        let text = serde_json::to_string_pretty(profile).map_err(|e| e.to_string())?;
+        let text = serde_json::to_string_pretty(doc).map_err(|e| e.to_string())?;
         fs::write(&tmp, text).map_err(|e| e.to_string())?;
         fs::rename(&tmp, &self.path).map_err(|e| e.to_string())
     }
 
     pub fn profile(&self) -> Profile {
-        self.profile.lock().unwrap().clone()
+        let doc = self.doc.lock().unwrap();
+        let mut doc = doc.clone();
+        normalize(&mut doc);
+        let book = doc
+            .characters
+            .iter()
+            .find(|c| c.id == doc.active_id)
+            .unwrap();
+        let now = now_ms();
+        let mut purse = book.purse.clone();
+        purse.sort_by(|a, b| b.created.cmp(&a.created));
+        let mut sessions = book.sessions.clone();
+        sessions.sort_by(|a, b| b.started.cmp(&a.started));
+        let mut factions = book.factions.clone();
+        factions.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        Profile {
+            active_id: doc.active_id.clone(),
+            roster: doc
+                .characters
+                .iter()
+                .map(|c| RosterEntry {
+                    id: c.id.clone(),
+                    name: display_name(&c.character.name),
+                })
+                .collect(),
+            character: book.character.clone(),
+            contacts: book.contacts.clone(),
+            journal: book.journal.clone(),
+            rumors: book.rumors.clone(),
+            purse_balance: book.purse.iter().map(|e| e.amount).sum(),
+            purse,
+            factions,
+            time_on_field_ms: field_ms(&book.sessions, now),
+            sessions,
+        }
     }
 
     pub fn save_character(&self, character: Character) -> Result<(), String> {
-        let mut p = self.profile.lock().unwrap();
-        p.character = character;
-        self.save(&p)
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).character = character;
+        self.save_doc(&doc)
     }
 
-    /// Upsert a contact; empty id mints a new one. Returns the stored record.
+    pub fn create_character(&self, name: String) -> Result<Profile, String> {
+        let mut doc = self.doc.lock().unwrap();
+        let mut book = CharacterBook::blank();
+        book.character.name = name;
+        doc.active_id = book.id.clone();
+        doc.characters.push(book);
+        self.save_doc(&doc)?;
+        drop(doc);
+        Ok(self.profile())
+    }
+
+    pub fn switch_character(&self, id: &str) -> Result<Profile, String> {
+        let mut doc = self.doc.lock().unwrap();
+        if !doc.characters.iter().any(|c| c.id == id) {
+            return Err("no such character".into());
+        }
+        doc.active_id = id.to_string();
+        self.save_doc(&doc)?;
+        drop(doc);
+        Ok(self.profile())
+    }
+
+    pub fn delete_character(&self, id: &str) -> Result<Profile, String> {
+        let mut doc = self.doc.lock().unwrap();
+        if doc.characters.len() <= 1 {
+            return Err("the last name stays on the roll".into());
+        }
+        let before = doc.characters.len();
+        doc.characters.retain(|c| c.id != id);
+        if doc.characters.len() == before {
+            return Err("no such character".into());
+        }
+        if !doc.characters.iter().any(|c| c.id == doc.active_id) {
+            doc.active_id = doc.characters[0].id.clone();
+        }
+        self.save_doc(&doc)?;
+        drop(doc);
+        Ok(self.profile())
+    }
+
     pub fn save_contact(&self, mut contact: Contact) -> Result<Contact, String> {
-        let mut p = self.profile.lock().unwrap();
+        let mut doc = self.doc.lock().unwrap();
         if contact.id.is_empty() {
             contact.id = new_id();
         }
-        if let Some(existing) = p.contacts.iter_mut().find(|c| c.id == contact.id) {
+        let book = active_mut(&mut doc);
+        if let Some(existing) = book.contacts.iter_mut().find(|c| c.id == contact.id) {
             *existing = contact.clone();
         } else {
-            p.contacts.push(contact.clone());
+            book.contacts.push(contact.clone());
         }
-        self.save(&p)?;
+        self.save_doc(&doc)?;
         Ok(contact)
     }
 
     pub fn delete_contact(&self, id: &str) -> Result<(), String> {
-        let mut p = self.profile.lock().unwrap();
-        p.contacts.retain(|c| c.id != id);
-        self.save(&p)
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).contacts.retain(|c| c.id != id);
+        self.save_doc(&doc)
     }
 
     pub fn add_journal(
@@ -206,18 +496,18 @@ impl Store {
             location,
             body,
         };
-        let mut p = self.profile.lock().unwrap();
-        p.journal.push(entry.clone());
-        // newest first
-        p.journal.sort_by(|a, b| b.created.cmp(&a.created));
-        self.save(&p)?;
+        let mut doc = self.doc.lock().unwrap();
+        let book = active_mut(&mut doc);
+        book.journal.push(entry.clone());
+        book.journal.sort_by(|a, b| b.created.cmp(&a.created));
+        self.save_doc(&doc)?;
         Ok(entry)
     }
 
     pub fn delete_journal(&self, id: &str) -> Result<(), String> {
-        let mut p = self.profile.lock().unwrap();
-        p.journal.retain(|e| e.id != id);
-        self.save(&p)
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).journal.retain(|e| e.id != id);
+        self.save_doc(&doc)
     }
 
     pub fn add_rumor(&self, text: String, source: String) -> Result<Rumor, String> {
@@ -228,24 +518,115 @@ impl Store {
             source,
             done: false,
         };
-        let mut p = self.profile.lock().unwrap();
-        p.rumors.push(rumor.clone());
-        self.save(&p)?;
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).rumors.push(rumor.clone());
+        self.save_doc(&doc)?;
         Ok(rumor)
     }
 
     pub fn toggle_rumor(&self, id: &str) -> Result<(), String> {
-        let mut p = self.profile.lock().unwrap();
-        if let Some(r) = p.rumors.iter_mut().find(|r| r.id == id) {
+        let mut doc = self.doc.lock().unwrap();
+        if let Some(r) = active_mut(&mut doc).rumors.iter_mut().find(|r| r.id == id) {
             r.done = !r.done;
         }
-        self.save(&p)
+        self.save_doc(&doc)
     }
 
     pub fn delete_rumor(&self, id: &str) -> Result<(), String> {
-        let mut p = self.profile.lock().unwrap();
-        p.rumors.retain(|r| r.id != id);
-        self.save(&p)
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).rumors.retain(|r| r.id != id);
+        self.save_doc(&doc)
+    }
+
+    pub fn start_session(&self) -> Result<PlaySession, String> {
+        let mut doc = self.doc.lock().unwrap();
+        let book = active_mut(&mut doc);
+        if book.sessions.iter().any(|s| s.ended.is_none()) {
+            return Err("a session is already on the field".into());
+        }
+        let session = PlaySession {
+            id: new_id(),
+            started: now_ms(),
+            ended: None,
+            note: String::new(),
+        };
+        book.sessions.push(session.clone());
+        self.save_doc(&doc)?;
+        Ok(session)
+    }
+
+    pub fn stop_session(&self, note: String) -> Result<PlaySession, String> {
+        let mut doc = self.doc.lock().unwrap();
+        let book = active_mut(&mut doc);
+        let session = book
+            .sessions
+            .iter_mut()
+            .find(|s| s.ended.is_none())
+            .ok_or_else(|| "no session on the field".to_string())?;
+        let ended = now_ms().max(session.started);
+        session.ended = Some(ended);
+        if !note.trim().is_empty() {
+            session.note = note.trim().to_string();
+        }
+        let stored = session.clone();
+        self.save_doc(&doc)?;
+        Ok(stored)
+    }
+
+    pub fn delete_session(&self, id: &str) -> Result<(), String> {
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).sessions.retain(|s| s.id != id);
+        self.save_doc(&doc)
+    }
+
+    pub fn add_coin(
+        &self,
+        amount: i64,
+        note: String,
+        counterparty: String,
+    ) -> Result<CoinEntry, String> {
+        if amount == 0 {
+            return Err("amount has to be at least 1".into());
+        }
+        let entry = CoinEntry {
+            id: new_id(),
+            created: now_ms(),
+            amount,
+            note,
+            counterparty,
+        };
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).purse.push(entry.clone());
+        self.save_doc(&doc)?;
+        Ok(entry)
+    }
+
+    pub fn delete_coin(&self, id: &str) -> Result<(), String> {
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).purse.retain(|e| e.id != id);
+        self.save_doc(&doc)
+    }
+
+    pub fn save_faction(&self, mut faction: FactionStanding) -> Result<FactionStanding, String> {
+        faction.standing = faction.standing.clamp(-2, 2);
+        let mut doc = self.doc.lock().unwrap();
+        if faction.id.is_empty() {
+            faction.id = new_id();
+        }
+        let book = active_mut(&mut doc);
+        if let Some(existing) = book.factions.iter_mut().find(|f| f.id == faction.id) {
+            *existing = faction.clone();
+        } else {
+            book.factions.push(faction.clone());
+        }
+        self.save_doc(&doc)?;
+        Ok(faction)
+    }
+
+    pub fn delete_faction(&self, id: &str) -> Result<(), String> {
+        let mut doc = self.doc.lock().unwrap();
+        active_mut(&mut doc).factions.retain(|f| f.id != id);
+        self.save_doc(&doc)
     }
 }
 
@@ -254,7 +635,11 @@ mod tests {
     use super::*;
 
     fn temp_store(tag: &str) -> Store {
-        let dir = std::env::temp_dir().join(format!("daedric-store-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "daedric-store-{tag}-{}-{}",
+            std::process::id(),
+            new_id()
+        ));
         fs::create_dir_all(&dir).unwrap();
         Store::load(dir)
     }
@@ -272,7 +657,6 @@ mod tests {
         let loaded = s.profile();
         assert_eq!(loaded.character.name, "Svana Far-Shield");
         assert_eq!(loaded.character.level, Some(12));
-        // file is real and reloadable (Store::load appends daedric-companion/ itself)
         let config_dir = s.path.parent().unwrap().parent().unwrap().to_path_buf();
         let s2 = Store::load(config_dir);
         assert_eq!(s2.profile().character.race, "Nord");
@@ -324,9 +708,112 @@ mod tests {
         s.delete_rumor(&r.id).unwrap();
         assert!(s.profile().rumors.is_empty());
     }
+
+    #[test]
+    fn legacy_file_migrates_without_dropping_the_sheet() {
+        let dir = std::env::temp_dir().join(format!("daedric-store-legacy-{}", new_id()));
+        let nested = dir.join("daedric-companion");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(
+            nested.join("profile.json"),
+            r#"{"character":{"name":"Svana Far-Shield","race":"Nord"},"contacts":[{"id":"c1","name":"Balimund","alive":true}],"journal":[],"rumors":[]}"#,
+        )
+        .unwrap();
+        let s = Store::load(dir.clone());
+        assert_eq!(s.profile().character.name, "Svana Far-Shield");
+        assert_eq!(s.profile().contacts.len(), 1);
+        assert_eq!(s.profile().roster.len(), 1);
+        let on_disk = fs::read_to_string(nested.join("profile.json")).unwrap();
+        assert!(on_disk.contains("\"characters\""));
+        let s2 = Store::load(dir);
+        assert_eq!(s2.profile().character.race, "Nord");
+        assert_eq!(s2.profile().contacts[0].name, "Balimund");
+    }
+
+    #[test]
+    fn switch_isolates_purse_and_journal() {
+        let s = temp_store("switch");
+        s.save_character(Character {
+            name: "Svana".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        s.add_coin(250, "bounty".into(), "jarl".into()).unwrap();
+        s.add_journal("the road".into(), "Whiterun".into(), String::new())
+            .unwrap();
+        let id_a = s.profile().active_id.clone();
+        s.create_character("Brynjolf".into()).unwrap();
+        let alt = s.profile();
+        assert_eq!(alt.character.name, "Brynjolf");
+        assert_eq!(alt.purse_balance, 0);
+        assert!(alt.journal.is_empty());
+        s.switch_character(&id_a).unwrap();
+        let back = s.profile();
+        assert_eq!(back.character.name, "Svana");
+        assert_eq!(back.purse_balance, 250);
+        assert_eq!(back.journal.len(), 1);
+    }
+
+    #[test]
+    fn last_character_cannot_be_retired() {
+        let s = temp_store("last");
+        let id = s.profile().active_id.clone();
+        let err = s.delete_character(&id).unwrap_err();
+        assert!(err.contains("last name"));
+        s.create_character("Alt".into()).unwrap();
+        s.delete_character(&s.profile().active_id).unwrap();
+        assert_eq!(s.profile().roster.len(), 1);
+    }
+
+    #[test]
+    fn session_start_stop_and_reject_double_start() {
+        let s = temp_store("session");
+        let open = s.start_session().unwrap();
+        assert!(open.ended.is_none());
+        assert!(s.start_session().is_err());
+        let closed = s.stop_session("cleared a fort".into()).unwrap();
+        assert!(closed.ended.unwrap() >= closed.started);
+        assert_eq!(closed.note, "cleared a fort");
+        assert!(s.profile().time_on_field_ms >= closed.ended.unwrap() - closed.started);
+        s.delete_session(&closed.id).unwrap();
+        assert!(s.profile().sessions.is_empty());
+    }
+
+    #[test]
+    fn purse_rejects_zero_and_sums() {
+        let s = temp_store("purse");
+        assert!(s.add_coin(0, String::new(), String::new()).is_err());
+        s.add_coin(100, "loot".into(), String::new()).unwrap();
+        s.add_coin(-40, "inn".into(), "barkeep".into()).unwrap();
+        assert_eq!(s.profile().purse_balance, 60);
+        let id = s.profile().purse[0].id.clone();
+        s.delete_coin(&id).unwrap();
+        assert_eq!(s.profile().purse.len(), 1);
+    }
+
+    #[test]
+    fn faction_upsert_clamps_standing() {
+        let s = temp_store("faction");
+        let f = s
+            .save_faction(FactionStanding {
+                id: String::new(),
+                name: "Companions".into(),
+                standing: 9,
+                rank: "shield-sibling".into(),
+                notes: String::new(),
+            })
+            .unwrap();
+        assert_eq!(s.profile().factions[0].standing, 2);
+        let mut edited = f.clone();
+        edited.rank = "harbinger".into();
+        s.save_faction(edited).unwrap();
+        assert_eq!(s.profile().factions.len(), 1);
+        assert_eq!(s.profile().factions[0].rank, "harbinger");
+        s.delete_faction(&f.id).unwrap();
+        assert!(s.profile().factions.is_empty());
+    }
 }
 
-// Contacts/journal/rumors derive Default via field defaults + manual impls.
 impl Default for Contact {
     fn default() -> Self {
         Contact {
@@ -365,6 +852,18 @@ impl Default for Rumor {
             text: String::new(),
             source: String::new(),
             done: false,
+        }
+    }
+}
+
+impl Default for FactionStanding {
+    fn default() -> Self {
+        FactionStanding {
+            id: String::new(),
+            name: String::new(),
+            standing: 0,
+            rank: String::new(),
+            notes: String::new(),
         }
     }
 }
