@@ -168,6 +168,19 @@ function renderUptime() {
   el.classList.toggle('down', !nowOnline);
 }
 
+async function refreshPlayLine() {
+  const root = $('skyrim-root-input') ? $('skyrim-root-input').value.trim() : '';
+  const line = $('play-line');
+  if (!line) return;
+  try {
+    const report = await invoke('read_play_line', { skyrimRoot: root });
+    line.textContent = report.text;
+    line.classList.toggle('down', !report.ready);
+  } catch (e) {
+    line.textContent = String(e);
+  }
+}
+
 // ---------- pulse ----------
 
 async function loadPulse() {
@@ -192,6 +205,7 @@ async function loadPulse() {
     });
     renderSparklines();
     renderUptime();
+    refreshPlayLine();
   } catch (e) {
     $('pulse-content').classList.add('hidden');
     setError('pulse', String(e));
@@ -1724,6 +1738,7 @@ const savedRoot = localStorage.getItem(SKYRIM_KEY);
 if (savedRoot) $('skyrim-root-input').value = savedRoot;
 $('skyrim-root-input').addEventListener('change', () => {
   localStorage.setItem(SKYRIM_KEY, $('skyrim-root-input').value.trim());
+  refreshPlayLine();
 });
 
 armAutoRefresh();
@@ -1731,5 +1746,6 @@ refreshAll();
 startWatcher();
 renderSparklines();
 renderUptime();
+refreshPlayLine();
 setInterval(syncSessionChip, 1000);
 loadProfile();

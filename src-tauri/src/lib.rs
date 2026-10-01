@@ -1,5 +1,6 @@
 //! daedric-companion — Tauri 2 desktop dashboard backed by daedric-api.
 
+mod playline;
 mod store;
 
 use daedric_api::{Client, DEFAULT_HOST};
@@ -456,6 +457,11 @@ fn place_delete(state: tauri::State<Store>, id: String) -> Result<(), String> {
     state.delete_place(&id)
 }
 
+#[tauri::command]
+fn read_play_line(skyrim_root: String) -> playline::PlayLine {
+    playline::read_play_line(&skyrim_root)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -497,7 +503,8 @@ pub fn run() {
             kit_save,
             kit_delete,
             place_save,
-            place_delete
+            place_delete,
+            read_play_line
         ])
         .run(tauri::generate_context!())
         .expect("error while running daedric-companion");
