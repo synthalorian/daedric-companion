@@ -6,6 +6,14 @@ It watches the live server (player count, latency, news, launcher feed, collecti
 
 Nothing here talks to your game process. The journal is a JSON file on your machine.
 
+## Download
+
+Player builds are on the [releases](https://github.com/synthalorian/daedric-companion/releases) page. Windows setup, Mac dmg (Apple silicon and Intel), and a Linux deb plus AppImage.
+
+The builds are not signed. Windows SmartScreen and Mac Gatekeeper will warn the first time. On Windows choose More info, then Run anyway. On Mac right-click the app and choose Open.
+
+The Server tab has one line for whether Play will reach the server: game version, release book, and the play-elsewhere toggle. Set the Skyrim folder so that line can read them.
+
 ## Build
 
 Requires Rust and the Tauri 2 CLI.
