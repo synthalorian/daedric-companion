@@ -8,4 +8,4 @@ description = "Client for the Daedric Online server surface: status, news, RakNe
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-ureq = { version = "2", features = ["json"] }
+ureq = { version = "3", features = ["json"] }
